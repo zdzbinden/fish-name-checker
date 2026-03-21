@@ -1,0 +1,16 @@
+# Source PDF — copyrighted, not for distribution
+names_of_fishes/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+
+# uv
+.python-version
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
