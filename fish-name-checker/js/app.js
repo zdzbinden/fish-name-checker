@@ -45,7 +45,7 @@
     }
 
     // Build lookup structures
-    for (const [canonical, info] of Object.entries(db.valid_names)) {
+    for (const [canonical] of Object.entries(db.valid_names)) {
       const lower = canonical.toLowerCase();
       validSet.add(lower);
       validMap.set(lower, canonical);
@@ -153,7 +153,11 @@
 
     // 1. Exact valid match
     if (validSet.has(lower)) {
-      return { type: 'valid', canonical: validMap.get(lower), suggestion: null };
+      const canonical  = validMap.get(lower);
+      const info       = db.valid_names[canonical];
+      const commonName = info ? (info.common_name_en || '') : '';
+      const changed    = info && info.flags && info.flags.includes('*');
+      return { type: changed ? 'changed' : 'valid', canonical, suggestion: null, commonName };
     }
 
     // 2. Known synonym / outdated name
@@ -219,7 +223,14 @@
       // Text before this finding
       html += esc(text.slice(lastIndex, f.index));
 
-      const title = f.suggestion ? `→ ${f.suggestion}` : f.type;
+      let title;
+      if (f.type === 'valid') {
+        title = f.commonName || 'Valid';
+      } else if (f.type === 'changed') {
+        title = `Changed in 8th ed.${f.commonName ? ` — now: ${f.commonName}` : ''}`;
+      } else {
+        title = f.suggestion ? `→ ${f.suggestion}` : f.type;
+      }
       html += `<span class="hl ${f.type}" title="${esc(title)}">${esc(f.text)}</span>`;
 
       lastIndex = f.index + f.text.length;
@@ -269,6 +280,7 @@
           index:      cand.index,
           type:       result.type,
           suggestion: result.suggestion,
+          commonName: result.commonName || '',
         });
       }
 
@@ -298,6 +310,7 @@
         }
 
         const labels = {
+          changed:    'Changed in 8th edition',
           outdated:   'Outdated / Synonym',
           misspelled: 'Misspelled',
           unknown:    'Unknown fish name',
@@ -305,11 +318,25 @@
 
         summaryTbody.innerHTML = '';
         for (const f of deduped) {
+          let suggestionCell;
+          if (f.type === 'changed') {
+            suggestionCell = f.commonName
+              ? `Now: <em>${esc(f.commonName)}</em> &mdash; confirm intended species`
+              : 'Confirm this is the intended species';
+          } else if (f.suggestion) {
+            const suggInfo    = db.valid_names[f.suggestion];
+            const suggCommon  = suggInfo ? (suggInfo.common_name_en || '') : '';
+            suggestionCell    = `<em>${esc(f.suggestion)}</em>` +
+              (suggCommon ? ` <span class="common-name">(${esc(suggCommon)})</span>` : '');
+          } else {
+            suggestionCell = '—';
+          }
+
           const tr = document.createElement('tr');
           tr.innerHTML =
             `<td class="name-cell">${esc(f.binomial)}</td>` +
             `<td><span class="status-${f.type}">${labels[f.type] || f.type}</span></td>` +
-            `<td>${f.suggestion ? `<em>${esc(f.suggestion)}</em>` : '—'}</td>`;
+            `<td>${suggestionCell}</td>`;
           summaryTbody.appendChild(tr);
         }
       }

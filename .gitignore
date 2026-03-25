@@ -1,6 +1,12 @@
 # Source PDF — copyrighted, not for distribution
 names_of_fishes/
 
+# Original project prompt (personal)
+Prompt.md
+
+# Eschmeyer scraper cache (large, local only)
+eschmeyer_cache.json
+
 # Python
 __pycache__/
 *.py[cod]

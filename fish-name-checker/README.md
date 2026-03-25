@@ -5,8 +5,6 @@ A static web app that validates scientific fish names in manuscript text against
 8th edition (Page et al., 2023), published by the American Fisheries Society (AFS)
 and the American Society of Ichthyologists and Herpetologists (ASIH).
 
-**Scientific names only** — common names are not checked.
-
 ---
 
 ## How to use
@@ -22,10 +20,45 @@ and the American Society of Ichthyologists and Herpetologists (ASIH).
 
 | Color  | Meaning |
 |--------|---------|
-| Green  | Valid — exact match in the 8th edition |
-| Orange | Outdated or synonym — replaced by a different name in the 8th edition |
-| Red    | Misspelled — close match found; check the suggestion |
-| Purple | Unknown — genus looks fish-like but no close species match |
+| Green  | **Valid** — exact match in the 8th edition |
+| Blue   | **Changed in 8th edition** — name is valid but was reassigned or revised since the 7th edition; confirm this is the intended species (hover for current common name) |
+| Orange | **Outdated / Synonym** — replaced by a different name; suggestion shown with common name |
+| Red    | **Misspelled** — close match found; check the suggestion |
+| Purple | **Unknown** — genus looks fish-like but no close species match |
+
+Hover over any highlighted name to see its common name or suggested correction.
+
+---
+
+## Data pipeline
+
+The name database (`data/fish_names.json`) is built in two steps:
+
+### Step 1 — Parse the AFS table PDF
+
+```powershell
+uv run --with pymupdf python ../parse_pdf.py
+```
+
+Source: `../names_of_fishes/Names-of-Fishes-8-Table1.pdf`
+(The table-only PDF distributed by AFS — not the full book.)
+
+Extracts ~5,086 species with full metadata per entry:
+`class`, `order`, `family`, `author`, `occurrence`, `flags`, `common_name_en`,
+`common_name_es`, `common_name_fr`
+
+### Step 2 — Enrich with synonyms from Eschmeyer's Catalog of Fishes
+
+```powershell
+uv run --with requests --with beautifulsoup4 python ../scrape_eschmeyer.py
+```
+
+Queries https://researcharchive.calacademy.org/research/ichthyology/catalog/ for
+each species and adds older/synonymized names to `fish_names.json`. Handles both
+strict synonyms and genus transfers (reclassifications).
+
+Results are cached to `../eschmeyer_cache.json` so interrupted runs resume cleanly.
+The full run takes ~3 hours at a respectful request rate.
 
 ---
 
@@ -34,7 +67,7 @@ and the American Society of Ichthyologists and Herpetologists (ASIH).
 The app loads `data/fish_names.json` via `fetch()`, so it must be served over HTTP
 (opening `index.html` directly as a `file://` URL will fail in most browsers).
 
-```bash
+```powershell
 cd fish-name-checker
 python -m http.server 8080
 # then open http://localhost:8080
@@ -46,17 +79,15 @@ python -m http.server 8080
 
 When a new edition of *Names of Fishes* is published:
 
-1. Replace `../names_of_fishes/NAMES OF FISHES 8th.pdf` with the new PDF.
-2. Update the page-range constants at the top of `parse_pdf.py`
-   (`SPECIES_START`, `SPECIES_END`, `APPENDIX_START`, `APPENDIX_END`) to match
-   the new edition's layout.
-3. Re-run the parser:
-
-```bash
-pip install pdfplumber   # first time only
-python ../parse_pdf.py
-```
-
+1. Replace `../names_of_fishes/Names-of-Fishes-8-Table1.pdf` with the new table PDF.
+2. Re-run the parser:
+   ```powershell
+   uv run --with pymupdf python ../parse_pdf.py
+   ```
+3. Delete `../eschmeyer_cache.json` and re-run the synonym scraper:
+   ```powershell
+   uv run --with requests --with beautifulsoup4 python ../scrape_eschmeyer.py
+   ```
 4. Commit and push `data/fish_names.json`.
 
 ---

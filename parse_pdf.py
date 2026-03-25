@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-parse_pdf.py — Extract fish names from "Common and Scientific Names of Fishes"
-8th edition PDF (AFS/ASIH, 2023) and write fish-name-checker/data/fish_names.json.
+parse_pdf.py — Extract fish names and metadata from the AFS 8th edition
+"Names of Fishes" Table 1 PDF and write fish-name-checker/data/fish_names.json.
 
-The PDF pages are landscape-formatted but stored portrait; each column of the
-book table becomes a vertical x-strip in the PDF.  Characters within each word
-are stored in reverse order.
+Source: names_of_fishes/Names-of-Fishes-8-Table1.pdf
+This is the table-only PDF distributed by AFS. Each species row uses dot-leader
+column separators; text is correctly encoded (no reversal needed).
 
 Usage:
     uv run --with pymupdf python parse_pdf.py
@@ -25,304 +25,115 @@ except ImportError:
     print("Run: uv run --with pymupdf python parse_pdf.py")
     sys.exit(1)
 
-PDF_PATH    = Path(__file__).parent / "names_of_fishes" / "NAMES OF FISHES 8th.pdf"
+PDF_PATH    = Path(__file__).parent / "names_of_fishes" / "Names-of-Fishes-8-Table1.pdf"
 OUTPUT_PATH = Path(__file__).parent / "fish-name-checker" / "data" / "fish_names.json"
 
-# PDF page indices (0-based)
-SPECIES_START  = 34   # page 35
-SPECIES_END    = 229  # page 230
-APPENDIX_START = 230  # page 231
-APPENDIX_END   = 269  # page 270
+# ── Regexes ───────────────────────────────────────────────────────────────────
 
-# How close (in PDF points) x0 values must be to be grouped into the same strip
-X_STRIP_TOL = 5
+HAS_DOTS_RE = re.compile(r'\.{4,}')   # species rows have 4+ consecutive dots
 
-# ── Regexes ──────────────────────────────────────────────────────────────────
+CLASS_RE  = re.compile(r'^CLASS\s+([A-Z]+)\s*[–—-]+\s*(.+)$')
+ORDER_RE  = re.compile(r'^ORDER\s+([A-Z]{4,})')
+FAMILY_RE = re.compile(r'^[*^&+]?\s*([A-Z][a-z]+(?:idae|inae))\s*[–—-]')
 
-GENUS_RE   = re.compile(r'^[A-Z][a-z]{2,30}$')
-SPECIES_RE = re.compile(r'^[a-z]{2,30}$')
+GENUS_RE   = re.compile(r'^[A-Z][a-z]{1,}$')          # allow 2-char genera e.g. Zu
+SPECIES_RE = re.compile(r'^[a-z][a-z-]{2,}$')         # allow hyphens e.g. x-punctatus
 
-# Occurrence codes: e.g. A:CMU, P:MU, A-P:CMU, F:CU, Ar:C
-OCC_RE = re.compile(
-    r'^([APFCMUAr](?:[-:,][APFCMUAr]{1,3})*'
-    r'(?:\[I\]|\[X\]|\[XN\])*'
-    r'(?:[-:,][APFCMUAr]{1,3}(?:\[I\]|\[X\]|\[XN\])*)*)$'
+# Lines that are never species data
+SKIP_RE = re.compile(
+    r'^\d+$'                              # page number
+    r'|^NAMES OF FISHES$'                # running header
+    r'|^SCIENTIFIC NAME'                 # column header
+    r'|^\s*OCCURRENCE'                   # column header
+    r'|^COMMON NAME'                     # column header
+    r'|^TABLE\s+1\.'                     # table caption
+    r'|^A\s*='                           # legend: code definitions
+    r'|^[*^]\s+indicates'               # legend: flag definitions
+    r'|^Common names'                    # legend
+    r'|^the exclusive'                   # legend continuation
+    r'|^added to the'                    # legend continuation
+    r'|^in French'                       # legend continuation
+    r'|^En-,\s*Sp-'                      # legend continuation
 )
 
-# Appendix synonym patterns (after character-reversal + strip joining)
-TRANSFERRED_RE = re.compile(r'[Tt]ransferred\s+from\s+([A-Z][a-z]+)')
-REPLACES_RE    = re.compile(r'[Rr]eplaces?\s+((?:[A-Z]\.?\s+)?[a-z]{3,})')
-SYNONYMIZED_RE = re.compile(r'synonymiz\w+\s+with\s+((?:[A-Z]\.?\s+)?[a-z]{3,})')
-FORMERLY_RE    = re.compile(r'(?:formerly|previously)\s+(?:known\s+as|listed\s+as)\s+([A-Z][a-z]+\s+[a-z]+)')
 
+# ── Parsers ───────────────────────────────────────────────────────────────────
 
-# ── Word extraction helpers ───────────────────────────────────────────────────
-
-def extract_words_reversed(page):
+def parse_species_line(line: str) -> dict | None:
     """
-    Return list of word dicts ready for parsing.
-    Each dict: {x0, x1, top, text, tokens}
-    'tokens' splits the text on dot-leaders (2+ dots).
+    Parse one species data row. Returns None if not a valid species entry.
 
-    PyMuPDF sorts characters by visual position, so words are already in
-    correct reading order — no reversal needed.  It also decomposes ligature
-    glyphs by default, so no manual ligature patching is required.
+    Column format (dot-leader separated):
+        [flags\\t]Genus species Author, Year  ....  OCC  ....  English  ....  Spanish  ....  French
     """
-    # get_text("words") returns (x0, y0, x1, y1, "word", block_no, line_no, word_no)
-    raw = page.get_text("words")
-    result = []
-    for w in raw:
-        x0, y0, x1, y1, text = w[0], w[1], w[2], w[3], w[4]
-        # Split on dot-leaders to separate adjacent columns that got merged
-        tokens = [t.strip() for t in re.split(r'\.{2,}', text) if t.strip()]
-        result.append({
-            'x0':    x0,
-            'x1':    x1,
-            'top':   y0,
-            'text':  text,
-            'tokens': tokens,
-        })
-    return result
+    if not HAS_DOTS_RE.search(line):
+        return None
 
+    parts = re.split(r'\.{2,}', line)
+    if len(parts) < 3:   # need at least: name, occurrence, English name
+        return None
 
-def group_by_x_strip(words, tol=X_STRIP_TOL):
-    """
-    Group words into x-strips using a simple nearest-group algorithm.
-    Returns dict: {representative_x0: [word, ...]}
-    """
-    groups = {}   # key = representative x0 (float)
-    for w in words:
-        x = w['x0']
-        matched = None
-        for key in groups:
-            if abs(x - key) <= tol:
-                matched = key
-                break
-        if matched is None:
-            groups[x] = [w]
-        else:
-            groups[matched].append(w)
-    return groups
+    col0    = parts[0]
+    col_occ = parts[1].strip()
+    col_en  = parts[2].strip()
+    col_es  = parts[3].strip() if len(parts) > 3 else ''
+    col_fr  = parts[4].strip() if len(parts) > 4 else ''
 
+    # Validate occurrence code — must start with a known letter
+    occ = re.sub(r'\s+', '', col_occ)
+    if not re.match(r'^[APFarCMU]', occ):
+        return None
 
-# ── Species page parser ───────────────────────────────────────────────────────
+    # Extract flags (* ^ & +) from the start of col0
+    text = col0.lstrip('\t ')
+    flag_m = re.match(r'^([*^&+]+)\s*', text)
+    flags = ''
+    if flag_m:
+        flags = flag_m.group(1)
+        text = text[flag_m.end():]
+    text = text.strip()
 
-def parse_strip(strip_words):
-    """
-    Given words in one x-strip (sorted descending by top = reading order),
-    return a parsed dict with keys: type, genus, species, occurrence, common_en
-    or type='order'/'family'/'skip'.
-    """
-    texts  = [w['text']  for w in strip_words]
-    tokens = []
-    for w in strip_words:
-        tokens.extend(w['tokens'])
+    # Parse genus, species epithet, author
+    tokens = text.split()
+    if len(tokens) < 3:   # need genus + epithet + at least one author token
+        return None
 
-    # ── ORDER heading detection ──────────────────────────────────────────────
-    if 'ORDER' in texts:
-        idx = texts.index('ORDER')
-        # Order name words follow ORDER (lower top = smaller index value after
-        # sorting descending-top, so they come AFTER in the list)
-        parts = []
-        for t in texts[idx + 1:]:
-            if re.match(r'^[A-Z]{2,}$', t):
-                parts.append(t)
-            else:
-                break
-        if not parts:
-            # Try words before ORDER (some layouts put name before keyword)
-            for t in texts[:idx]:
-                if re.match(r'^[A-Z]{2,}$', t):
-                    parts.append(t)
-        name = ' '.join(p.capitalize() for p in parts)
-        return {'type': 'order', 'value': name} if name else {'type': 'skip'}
+    genus      = tokens[0]
+    species_ep = tokens[1].rstrip('.,')
+    author     = ' '.join(tokens[2:]).strip().strip('.,')
 
-    # ── Family heading detection ─────────────────────────────────────────────
-    for t in texts:
-        m = re.match(r'^([A-Z][a-z]+(?:idae|inae))\s*[–—\-]', t)
-        if m:
-            return {'type': 'family', 'value': m.group(1)}
-        # Family name alone (no dash yet)
-        if re.match(r'^[A-Z][a-z]+(?:idae|inae)$', t):
-            return {'type': 'family', 'value': t}
-
-    # ── Genus + species detection ────────────────────────────────────────────
-    genus = None
-    species_ep = None
-
-    for i, t in enumerate(texts):
-        if t in ('*', '^', '&', '+', '[I]', '[X]'):
-            continue
-        if GENUS_RE.match(t):
-            for j in range(i + 1, min(i + 5, len(texts))):
-                candidate = texts[j]
-                if candidate in ('*', '^', '&'):
-                    continue
-                if SPECIES_RE.match(candidate):
-                    genus = t
-                    species_ep = candidate
-                    break
-            if genus:
-                break
-
-    if not genus:
-        return {'type': 'skip'}
-
-    # ── Occurrence code ──────────────────────────────────────────────────────
-    occurrence = ''
-    for tok in tokens:
-        tok_clean = re.sub(r'[\s\.]', '', tok)
-        if OCC_RE.match(tok_clean):
-            occurrence = tok_clean
-            break
-
-    # ── English common name ──────────────────────────────────────────────────
-    # All tokens, joined, after removing dots and splitting
-    flat = ' '.join(tokens)
-    flat = re.sub(r'\s+', ' ', flat).strip()
-
-    common_en = ''
-    if occurrence and occurrence in flat:
-        after = flat.split(occurrence, 1)[1].strip()
-        name_parts = []
-        for tok in after.split():
-            # English common names: mixed-case words starting with capital
-            if re.match(r'^[A-Z][a-zA-Z\'\-]+$', tok) and len(tok) > 1:
-                if not re.match(r'^[A-Z][a-z]+(?:idae|inae)$', tok):
-                    name_parts.append(tok)
-            elif name_parts:
-                break
-        common_en = ' '.join(name_parts)
+    if not GENUS_RE.match(genus):
+        return None
+    if not SPECIES_RE.match(species_ep):
+        return None
 
     return {
-        'type':      'species',
-        'genus':     genus,
-        'species':   species_ep,
-        'occurrence': occurrence,
-        'common_en': common_en,
+        'genus':          genus,
+        'species':        species_ep,
+        'author':         author,
+        'flags':          flags,
+        'occurrence':     occ,
+        'common_name_en': col_en,
+        'common_name_es': col_es,
+        'common_name_fr': col_fr,
     }
 
 
-def parse_species_pages(pdf):
-    valid_names: dict = {}
-    genera: set = set()
-    current_order  = ""
-    current_family = ""
-
-    total = min(SPECIES_END + 1, len(pdf))
-    print(f"Parsing species pages {SPECIES_START + 1}–{total} ...")
-
-    for page_idx in range(SPECIES_START, total):
-        page  = pdf[page_idx]
-        words = extract_words_reversed(page)
-        strips = group_by_x_strip(words, X_STRIP_TOL)
-
-        # Process strips in ascending x0 (= book reading order)
-        for xkey in sorted(strips.keys()):
-            strip_words = sorted(strips[xkey], key=lambda w: -w['top'])
-            result = parse_strip(strip_words)
-
-            if result['type'] == 'order':
-                if result['value']:
-                    current_order = result['value']
-            elif result['type'] == 'family':
-                current_family = result['value']
-            elif result['type'] == 'species':
-                g, s = result['genus'], result['species']
-                binomial = f"{g} {s}"
-                genera.add(g)
-                if binomial not in valid_names:
-                    valid_names[binomial] = {
-                        "family":       current_family,
-                        "order":        current_order,
-                        "common_name_en": result['common_en'],
-                    }
-
-        if (page_idx + 1) % 25 == 0:
-            done = page_idx + 1
-            print(f"  page {done}/{total}  ({len(valid_names)} names so far)")
-
-    return valid_names, genera
+def parse_class(line: str) -> tuple[str, str] | None:
+    m = CLASS_RE.match(line)
+    if not m:
+        return None
+    return m.group(1).capitalize(), m.group(2).strip()
 
 
-# ── Appendix parser ───────────────────────────────────────────────────────────
-
-def expand_abbrev(abbrev: str, context_genus: str) -> str:
-    m = re.match(r'([A-Z])\.?\s+([a-z]{3,})', abbrev.strip())
-    if m and context_genus and context_genus[0] == m.group(1):
-        return f"{context_genus} {m.group(2)}"
-    if re.match(r'[A-Z][a-z]+\s+[a-z]+', abbrev.strip()):
-        return abbrev.strip()
-    return ""
+def parse_order(line: str) -> str | None:
+    m = ORDER_RE.match(line)
+    return m.group(1).capitalize() if m else None
 
 
-def parse_appendix_pages(pdf, valid_names: dict) -> dict:
-    synonyms: dict = {}
-    total = min(APPENDIX_END + 1, len(pdf))
-    print(f"\nParsing appendix pages {APPENDIX_START + 1}–{total} ...")
-
-    # Collect all appendix text using the same word-reversal approach
-    all_words = []
-    for page_idx in range(APPENDIX_START, total):
-        page  = pdf[page_idx]
-        words = extract_words_reversed(page)
-        all_words.extend(words)
-
-    # Sort into reading order and join into a single text block
-    strips = group_by_x_strip(all_words, X_STRIP_TOL)
-    text_parts = []
-    for xkey in sorted(strips.keys()):
-        strip_words = sorted(strips[xkey], key=lambda w: -w['top'])
-        # Join dot-split tokens
-        for w in strip_words:
-            text_parts.append(w['text'])
-
-    raw_text = ' '.join(text_parts)
-    raw_text = re.sub(r'\.{2,}', ' ', raw_text)
-    raw_text = re.sub(r'\s+', ' ', raw_text).strip()
-
-    # Split into sentences
-    sentences = re.split(r'(?<=[\.!?])\s+(?=[A-Z])', raw_text)
-
-    for sent in sentences:
-        sent = sent.strip()
-        if len(sent) < 15:
-            continue
-
-        name_m = re.match(r'^([A-Z][a-z]+\s+[a-z]+)', sent)
-        if not name_m:
-            continue
-        current_name  = name_m.group(1)
-        current_genus = current_name.split()[0]
-
-        tf = TRANSFERRED_RE.search(sent)
-        if tf:
-            old_genus = tf.group(1)
-            epithet   = current_name.split()[1]
-            old_name  = f"{old_genus} {epithet}"
-            if old_name != current_name and old_name not in valid_names:
-                synonyms[old_name] = current_name
-
-        rep = REPLACES_RE.search(sent)
-        if rep:
-            old_name = expand_abbrev(rep.group(1).strip(), current_genus)
-            if old_name and old_name != current_name and old_name not in valid_names:
-                synonyms[old_name] = current_name
-
-        syn = SYNONYMIZED_RE.search(sent)
-        if syn:
-            new_name = expand_abbrev(syn.group(1).strip(), current_genus)
-            if new_name and current_name not in valid_names:
-                synonyms[current_name] = new_name
-
-        form = FORMERLY_RE.search(sent)
-        if form:
-            old_name = form.group(1)
-            if old_name not in valid_names:
-                synonyms[old_name] = current_name
-
-    synonyms = {k: v for k, v in synonyms.items() if k not in valid_names}
-    return synonyms
+def parse_family(line: str) -> str | None:
+    m = FAMILY_RE.match(line)
+    return m.group(1) if m else None
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
@@ -334,33 +145,84 @@ def main():
 
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
 
+    valid_names: dict = {}
+    genera: set = set()
+    current_class  = ''
+    current_order  = ''
+    current_family = ''
+
     print(f"Opening {PDF_PATH} ...")
     with fitz.open(str(PDF_PATH)) as pdf:
-        print(f"Total pages in PDF: {len(pdf)}")
-        valid_names, genera = parse_species_pages(pdf)
-        synonyms = parse_appendix_pages(pdf, valid_names)
+        total = len(pdf)
+        print(f"Total pages: {total}")
+
+        for page_idx in range(1, total):   # table starts on page 2 (index 1)
+            page = pdf[page_idx]
+            for line in page.get_text("text").splitlines():
+                stripped = line.strip()
+                if not stripped or SKIP_RE.match(stripped):
+                    continue
+
+                cls = parse_class(stripped)
+                if cls:
+                    current_class = cls[0]
+                    continue
+
+                order = parse_order(stripped)
+                if order:
+                    current_order = order
+                    continue
+
+                family = parse_family(stripped)
+                if family:
+                    current_family = family
+                    continue
+
+                entry = parse_species_line(line)
+                if not entry:
+                    continue
+
+                g, s    = entry['genus'], entry['species']
+                binomial = f"{g} {s}"
+                genera.add(g)
+
+                if binomial not in valid_names:
+                    valid_names[binomial] = {
+                        'class':          current_class,
+                        'order':          current_order,
+                        'family':         current_family,
+                        'author':         entry['author'],
+                        'occurrence':     entry['occurrence'],
+                        'flags':          entry['flags'],
+                        'common_name_en': entry['common_name_en'],
+                        'common_name_es': entry['common_name_es'],
+                        'common_name_fr': entry['common_name_fr'],
+                    }
+
+            if page_idx % 20 == 0:
+                print(f"  page {page_idx + 1}/{total}  ({len(valid_names)} names so far)")
 
     data = {
-        "metadata": {
-            "edition": 8,
-            "year":    2023,
-            "source":  "Common and Scientific Names of Fishes from the United States, Canada, and Mexico (AFS/ASIH)",
-            "species_count": len(valid_names),
+        'metadata': {
+            'edition':       8,
+            'year':          2023,
+            'source':        'Common and Scientific Names of Fishes from the United States, Canada, and Mexico (AFS/ASIH)',
+            'species_count': len(valid_names),
+            'synonym_count': 0,
         },
-        "valid_names": valid_names,
-        "genera":      sorted(genera),
-        "synonyms":    synonyms,
+        'valid_names': valid_names,
+        'genera':      sorted(genera),
+        'synonyms':    {},
     }
 
-    with open(OUTPUT_PATH, "w", encoding="utf-8") as f:
+    with open(OUTPUT_PATH, 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
     size_kb = OUTPUT_PATH.stat().st_size / 1024
     print(f"\nDone.  ({size_kb:.0f} KB written to {OUTPUT_PATH})")
     print(f"  Valid species : {len(valid_names)}")
     print(f"  Unique genera : {len(genera)}")
-    print(f"  Synonyms      : {len(synonyms)}")
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
