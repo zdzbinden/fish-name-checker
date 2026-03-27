@@ -1,0 +1,186 @@
+#!/usr/bin/env python3
+"""
+rescrape_transfers.py — Re-scrape genus-transfer species that returned empty
+results because Eschmeyer files them under the original description genus.
+
+Strategy: query the family page and extract just the matching epithet entry.
+
+Usage:
+    uv run --with requests --with beautifulsoup4 python rescrape_transfers.py
+"""
+
+import json
+import re
+import time
+from pathlib import Path
+
+import requests
+from bs4 import BeautifulSoup
+
+DATA_PATH  = Path(__file__).parent / "fishfinder" / "data" / "fish_names.json"
+CACHE_PATH = Path(__file__).parent / "eschmeyer_cache.json"
+
+BASE_URL = (
+    "https://researcharchive.calacademy.org"
+    "/research/ichthyology/catalog/fishcatget.asp"
+)
+HEADERS = {
+    "User-Agent": (
+        "FishNameChecker/1.0 (scientific research tool; "
+        "contact via https://github.com/zdzbinden/FISHFINDER)"
+    )
+}
+DELAY = 2.0
+
+
+def fetch_family_species(family: str, epithet: str, session: requests.Session) -> str | None:
+    """Fetch the family page and return the HTML, or None on failure."""
+    params = {"tbl": "species", "family": family, "species": epithet}
+    try:
+        r = session.get(BASE_URL, params=params, headers=HEADERS, timeout=30)
+        r.raise_for_status()
+        return r.text
+    except requests.RequestException as e:
+        print(f"  FAILED: {e}")
+        return None
+
+
+def parse_for_genus_transfer(html: str, target_genus: str, target_epithet: str) -> dict:
+    """
+    Parse a family+epithet result page looking for entries that reference the
+    target genus (AFS name). Collects the original genus as a synonym.
+    """
+    from scrape_eschmeyer import parse_results
+
+    soup = BeautifulSoup(html, "html.parser")
+    text = soup.get_text(separator=" ")
+    text = re.sub(r'\s+', ' ', text)
+    text = re.sub(r'\s+,', ',', text)
+
+    # Find entry headers matching our epithet
+    ENTRY_HEADER = re.compile(
+        r'(' + re.escape(target_epithet) + r'),\s+([A-Z][a-z]+)'
+        r'(?=(?:\s+\([A-Z][a-z]+\))?\s+[A-Z][a-z]+\s+\[)'
+    )
+
+    original_genera = set()
+    for m in ENTRY_HEADER.finditer(text):
+        original_genus = m.group(2)
+        if original_genus != target_genus:
+            original_genera.add(original_genus)
+
+    if not original_genera:
+        # Try a simpler pattern — look for "Valid as <target_genus> <epithet>"
+        valid_as = re.findall(
+            r'Valid as ' + re.escape(target_genus) + r' ' + re.escape(target_epithet),
+            text
+        )
+        if valid_as:
+            # Find the entry header before each "Valid as" match
+            for vm in re.finditer(
+                r'Valid as ' + re.escape(target_genus) + r' ' + re.escape(target_epithet),
+                text
+            ):
+                # Look backwards for any "epithet, Genus" header
+                before = text[:vm.start()]
+                hdr_matches = list(re.finditer(
+                    r'([a-z][a-z-]+),\s+([A-Z][a-z]+)', before
+                ))
+                if hdr_matches:
+                    last_hdr = hdr_matches[-1]
+                    orig_g = last_hdr.group(2)
+                    if orig_g != target_genus:
+                        original_genera.add(orig_g)
+
+    return original_genera
+
+
+def main():
+    with open(DATA_PATH, encoding="utf-8") as f:
+        data = json.load(f)
+    with open(CACHE_PATH, encoding="utf-8") as f:
+        cache = json.load(f)
+
+    # Find genus-transfer species with empty results
+    transfers = [
+        (k, v) for k, v in data["valid_names"].items()
+        if v.get("author", "").startswith("(")
+    ]
+    empty = [
+        k for k, v in transfers
+        if k in cache
+        and not cache[k].get("synonyms")
+        and not cache[k].get("current_name")
+    ]
+
+    print(f"Found {len(empty)} genus-transfer species with empty cache results.\n")
+    if not empty:
+        print("Nothing to do.")
+        return
+
+    session = requests.Session()
+    updated = 0
+
+    for i, binomial in enumerate(empty, 1):
+        genus, epithet = binomial.split(" ", 1)
+        family = data["valid_names"][binomial].get("family", "")
+        print(f"[{i}/{len(empty)}] {binomial} (family={family}) ...", end=" ", flush=True)
+
+        if not family:
+            print("no family — skip")
+            continue
+
+        html = fetch_family_species(family, epithet, session)
+        if not html:
+            continue
+
+        original_genera = parse_for_genus_transfer(html, genus, epithet)
+
+        if original_genera:
+            # Re-query with the original genus to get full synonym data
+            for orig_genus in original_genera:
+                print(f"\n  retrying as {orig_genus} {epithet} ...", end=" ", flush=True)
+                time.sleep(DELAY)
+
+                from scrape_eschmeyer import fetch_species, parse_results
+                retry_html = fetch_species(orig_genus, epithet, session)
+                if retry_html:
+                    entry = parse_results(retry_html, genus, epithet)
+                    # Also add the original genus placement as a synonym
+                    old_binomial = f"{orig_genus} {epithet}"
+                    if old_binomial not in entry["synonyms"] and old_binomial != binomial:
+                        entry["synonyms"].append(old_binomial)
+                    cache[binomial] = entry
+                    print(f"OK ({len(entry['synonyms'])} synonyms: {entry['synonyms'][:3]})")
+                    updated += 1
+                    break
+        else:
+            print("no original genus found")
+
+        time.sleep(DELAY)
+
+    # Save cache
+    with open(CACHE_PATH, "w", encoding="utf-8") as f:
+        json.dump(cache, f, ensure_ascii=False, indent=2)
+    print(f"\nCache saved. Updated {updated} entries.")
+
+    # Rebuild synonyms in fish_names.json
+    synonyms = {}
+    for binomial, entry in cache.items():
+        if entry.get("valid") is None:
+            continue
+        for old_name in entry.get("synonyms", []):
+            if old_name not in data["valid_names"]:
+                synonyms[old_name] = binomial
+
+    data["synonyms"] = synonyms
+    data["metadata"]["synonym_count"] = len(synonyms)
+
+    with open(DATA_PATH, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+    print(f"fish_names.json updated with {len(synonyms)} synonyms.")
+
+
+if __name__ == "__main__":
+    main()
