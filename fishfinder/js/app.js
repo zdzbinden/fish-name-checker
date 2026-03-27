@@ -222,6 +222,60 @@
     return hits;
   }
 
+  // ── Extract common-name matches from text ──────────────────────────────────
+  // Builds a prefix map (first word → list of common names) for efficient lookup.
+  // Only matches multi-word (2+) common names to avoid false positives.
+  let commonNamePrefixMap = null;   // built lazily on first scan
+
+  function buildCommonNamePrefixMap() {
+    commonNamePrefixMap = new Map();
+    for (const [lowerName, info] of commonNameMap) {
+      const words = lowerName.split(/\s+/);
+      if (words.length < 2) continue;   // skip single-word names
+      const first = words[0];
+      if (!commonNamePrefixMap.has(first)) commonNamePrefixMap.set(first, []);
+      commonNamePrefixMap.get(first).push({ lower: lowerName, info, wordCount: words.length });
+    }
+  }
+
+  function extractCommonNames(text, binomialSpans) {
+    if (!commonNamePrefixMap) buildCommonNamePrefixMap();
+    const hits = [];
+    // Regex to find word boundaries — match sequences of letters/hyphens
+    const WORD_RE = /[a-zA-Z][-a-zA-Z]*/g;
+    const lowerText = text.toLowerCase();
+    let wm;
+    WORD_RE.lastIndex = 0;
+    while ((wm = WORD_RE.exec(text)) !== null) {
+      const firstWord = wm[0].toLowerCase();
+      const candidates = commonNamePrefixMap.get(firstWord);
+      if (!candidates) continue;
+
+      for (const cand of candidates) {
+        const end = wm.index + cand.lower.length;
+        if (end > text.length) continue;
+        const slice = lowerText.slice(wm.index, end);
+        if (slice !== cand.lower) continue;
+        // Ensure it ends at a word boundary
+        if (end < text.length && /[a-zA-Z-]/.test(text[end])) continue;
+        // Skip if this span overlaps with an already-found binomial
+        const overlaps = binomialSpans.some(
+          s => wm.index < s.end && end > s.start
+        );
+        if (overlaps) continue;
+        hits.push({
+          text:       text.slice(wm.index, end),
+          binomial:   text.slice(wm.index, end),
+          index:      wm.index,
+          type:       'common',
+          suggestion: cand.info.binomial,
+          commonName: cand.info.commonName,
+        });
+      }
+    }
+    return hits;
+  }
+
   // ── HTML escaping ──────────────────────────────────────────────────────────
   function esc(str) {
     return str
@@ -276,6 +330,11 @@
           commonName: result.commonName || '',
         });
       }
+
+      // Second pass: scan for common names (2+ words, case-insensitive)
+      const binomialSpans = findings.map(f => ({ start: f.index, end: f.index + f.text.length }));
+      const commonHits = extractCommonNames(text, binomialSpans);
+      findings.push(...commonHits);
 
       // Track species count (non-blocking)
       trackSpecies(findings.length);
