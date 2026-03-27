@@ -183,6 +183,52 @@ def parse_results(html: str, target_genus: str, target_species: str) -> dict:
     return result
 
 
+# ── Genus-transfer fallback ───────────────────────────────────────────────────
+
+def _find_original_genus(
+    family: str, epithet: str, afs_genus: str, session: requests.Session
+) -> str | None:
+    """
+    When a species query returns empty (genus transfer), query by family+epithet
+    and look for "Valid as <afs_genus> <epithet>" to find the original genus.
+    Returns the original genus name, or None if not found.
+    """
+    if not family:
+        return None
+    params = {"tbl": "species", "family": family, "species": epithet}
+    try:
+        r = session.get(BASE_URL, params=params, headers=HEADERS, timeout=30)
+        r.raise_for_status()
+    except requests.RequestException:
+        return None
+
+    soup = BeautifulSoup(r.text, "html.parser")
+    text = soup.get_text(separator=" ")
+    text = re.sub(r'\s+', ' ', text)
+    text = re.sub(r'\s+,', ',', text)
+
+    # Look for "Valid as <afs_genus> <epithet>" and find the entry header before it
+    ENTRY_HEADER = re.compile(
+        r'([a-z][a-z-]+),\s+([A-Z][a-z]+)'
+        r'(?=(?:\s+\([A-Z][a-z]+\))?\s+[A-Z][a-z]+\s+\[)'
+    )
+    target_pattern = re.compile(
+        r'Valid as ' + re.escape(afs_genus) + r' ' + re.escape(epithet)
+    )
+
+    for vm in target_pattern.finditer(text):
+        # Find nearest entry header before this "Valid as" match
+        best = None
+        for hm in ENTRY_HEADER.finditer(text[:vm.start()]):
+            best = hm
+        if best and best.group(1).lower() == epithet.lower():
+            orig_genus = best.group(2)
+            if orig_genus != afs_genus:
+                return orig_genus
+
+    return None
+
+
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
@@ -216,6 +262,25 @@ def main():
         html = fetch_species(genus, epithet, session)
         if html is not None:
             entry = parse_results(html, genus, epithet)
+
+            # If no results and species was a genus transfer (parenthesized author),
+            # try querying by family + epithet to find the original genus, then retry.
+            if (not entry["synonyms"] and not entry["current_name"]
+                    and data["valid_names"][binomial].get("author", "").startswith("(")):
+                orig_genus = _find_original_genus(
+                    data["valid_names"][binomial].get("family", ""),
+                    epithet, genus, session
+                )
+                if orig_genus:
+                    print(f"(retry as {orig_genus}) ", end="", flush=True)
+                    time.sleep(DELAY)
+                    retry_html = fetch_species(orig_genus, epithet, session)
+                    if retry_html:
+                        entry = parse_results(retry_html, genus, epithet)
+                        old_binomial = f"{orig_genus} {epithet}"
+                        if old_binomial not in entry["synonyms"] and old_binomial != binomial:
+                            entry["synonyms"].append(old_binomial)
+
             cache[binomial] = entry
             status = "valid" if entry["valid"] else f"→ {entry['current_name'] or '?'}"
             print(f"{status}  ({len(entry['synonyms'])} synonyms)")
