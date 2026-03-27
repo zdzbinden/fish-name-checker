@@ -13,6 +13,7 @@
   let generaSet   = new Set();   // lowercase genus strings
   let commonNameMap = new Map(); // lowercase common name → {binomial, commonName}
   let validList   = [];          // [{genus, species, binomial}] for fuzzy scan
+  let synonymList = [];          // [{genus, species, oldName, newName}] for fuzzy synonym scan
 
   // ── DOM refs ─────────────────────────────────────────────────────────────
   const loadingEl      = document.getElementById('loading');
@@ -77,6 +78,15 @@
 
     for (const [oldName, newName] of Object.entries(db.synonyms)) {
       synonymMap.set(oldName.toLowerCase(), newName);
+      const parts = oldName.split(' ');
+      if (parts.length >= 2) {
+        synonymList.push({
+          lGenus:   parts[0].toLowerCase(),
+          lSpecies: parts.slice(1).join(' ').toLowerCase(),
+          oldName,
+          newName,
+        });
+      }
     }
 
     for (const genus of db.genera) {
@@ -148,6 +158,35 @@
     return bestName ? { name: bestName, dist: bestDist } : null;
   }
 
+  // ── Find closest synonym binomial ─────────────────────────────────────────
+  function findClosestSynonym(genus, species, maxDist) {
+    const lg = genus.toLowerCase();
+    const ls = species.toLowerCase();
+    let bestDist = maxDist + 1;
+    let bestEntry = null;
+
+    for (const entry of synonymList) {
+      if (entry.lGenus[0] !== lg[0]) continue;
+      if (Math.abs(entry.lGenus.length - lg.length) > maxDist) continue;
+
+      const gd = levenshtein(lg, entry.lGenus, maxDist);
+      if (gd > maxDist) continue;
+
+      if (entry.lSpecies[0] !== ls[0] &&
+          Math.abs(entry.lSpecies.charCodeAt(0) - ls.charCodeAt(0)) > 2) continue;
+
+      const sd = levenshtein(ls, entry.lSpecies, maxDist);
+      const total = gd + sd;
+
+      if (total < bestDist) {
+        bestDist = total;
+        bestEntry = entry;
+        if (total === 0) break;
+      }
+    }
+    return bestEntry ? { oldName: bestEntry.oldName, newName: bestEntry.newName, dist: bestDist } : null;
+  }
+
   // Species abbreviations that should never be treated as epithets
   const SPECIES_ABBREVS = new Set(['sp', 'spp', 'cf', 'aff', 'nr', 'var', 'subsp']);
 
@@ -171,6 +210,12 @@
     // 2. Known synonym / outdated name
     if (synonymMap.has(lower)) {
       return { type: 'outdated', canonical: binomial, suggestion: synonymMap.get(lower) };
+    }
+
+    // 2b. Fuzzy synonym match (catches misspelled synonyms like Leucisus → Leuciscus)
+    const closestSyn = findClosestSynonym(genus, species, 2);
+    if (closestSyn && closestSyn.dist > 0 && closestSyn.dist <= 2) {
+      return { type: 'outdated', canonical: binomial, suggestion: closestSyn.newName };
     }
 
     // 3. Common name match
