@@ -48,6 +48,13 @@ HEADERS = {
     )
 }
 
+# Eschmeyer entry header: "epithet, Genus" with lookahead for "Author [Year]"
+# Used in both parse_results() and _find_original_genus() to locate entry boundaries.
+ENTRY_HEADER_RE = re.compile(
+    r'([a-z][a-z-]+),\s+([A-Z][a-z]+)'
+    r'(?=(?:\s+\([A-Z][a-z]+\))?\s+[A-Z][a-z]+\s+\[)'
+)
+
 
 # ── Fetch ─────────────────────────────────────────────────────────────────────
 
@@ -65,9 +72,8 @@ def fetch_species(genus: str, species: str, session: requests.Session) -> str | 
                 print(f"\n  retry {attempt}/{MAX_RETRIES} in {wait}s ({e})", flush=True)
                 time.sleep(wait)
                 wait *= 2
-                # Fresh session in case the connection was closed by the server
+                # Reset connection pool (requests reconnects lazily)
                 session.close()
-                session.__init__()
             else:
                 print(f"WARNING: gave up on {genus} {species}: {e}")
                 return None
@@ -118,18 +124,12 @@ def parse_results(html: str, target_genus: str, target_species: str) -> dict:
     # Eschmeyer entry header format: "epithet, OriginalGenus Author Year"
     # (lowercase epithet first, then title-case genus — reversed from normal)
 
-    # Require "Author [" after the genus (with optional subgenus) to avoid
-    # matching geographic text like "Bay, California" or "sections, Families".
-    ENTRY_HEADER  = re.compile(
-        r'([a-z][a-z-]+),\s+([A-Z][a-z]+)'
-        r'(?=(?:\s+\([A-Z][a-z]+\))?\s+[A-Z][a-z]+\s+\[)'
-    )
     SYNONYM_OF_RE = re.compile(r'Synonym of ([A-Z][a-z]+ [a-z]+)')
 
     def last_header_before(pos):
         """Return (epithet, genus) of the entry header nearest before `pos`."""
         best = None
-        for m in ENTRY_HEADER.finditer(text[:pos]):
+        for m in ENTRY_HEADER_RE.finditer(text[:pos]):
             best = m   # keep advancing; last match is the one we want
         return best
 
@@ -208,10 +208,6 @@ def _find_original_genus(
     text = re.sub(r'\s+,', ',', text)
 
     # Look for "Valid as <afs_genus> <epithet>" and find the entry header before it
-    ENTRY_HEADER = re.compile(
-        r'([a-z][a-z-]+),\s+([A-Z][a-z]+)'
-        r'(?=(?:\s+\([A-Z][a-z]+\))?\s+[A-Z][a-z]+\s+\[)'
-    )
     target_pattern = re.compile(
         r'Valid as ' + re.escape(afs_genus) + r' ' + re.escape(epithet)
     )
@@ -219,7 +215,7 @@ def _find_original_genus(
     for vm in target_pattern.finditer(text):
         # Find nearest entry header before this "Valid as" match
         best = None
-        for hm in ENTRY_HEADER.finditer(text[:vm.start()]):
+        for hm in ENTRY_HEADER_RE.finditer(text[:vm.start()]):
             best = hm
         if best and best.group(1).lower() == epithet.lower():
             orig_genus = best.group(2)

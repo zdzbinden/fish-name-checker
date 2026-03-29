@@ -585,7 +585,7 @@
     let html = '';
     for (const [, f] of seen) {
       html += '<div class="species-row">';
-      html += `<span class="hl ${f.type}"><em>${esc(f.binomial)}</em></span>`;
+      html += `<span class="hl ${f.type}" aria-label="${esc(f.binomial)}: ${f.type}"><em>${esc(f.binomial)}</em></span>`;
 
       if (f.commonName) {
         html += ` <span class="common-name">${esc(f.commonName)}</span>`;
@@ -751,10 +751,19 @@
     infoModal.hidden = false;
     document.body.style.overflow = 'hidden';
     modalClose.focus();
+    infoModal.addEventListener('keydown', trapModalFocus);
   }
   function closeModal() {
     infoModal.hidden = true;
     document.body.style.overflow = '';
+    infoModal.removeEventListener('keydown', trapModalFocus);
+    infoBtn.focus();
+  }
+  function trapModalFocus(e) {
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      modalClose.focus();
+    }
   }
 
   // ── Copy citations ─────────────────────────────────────────────────────────

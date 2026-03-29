@@ -4,9 +4,34 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>FISHFINDER — Scientific Name Validator</title>
+  <meta name="description" content="Validate scientific fish names in manuscript text against the AFS 8th edition (Page et al., 2023). Checks spelling, detects synonyms, and flags outdated names.">
+  <meta name="keywords" content="fish names, scientific name validator, AFS 8th edition, ichthyology, taxonomy, nomenclature, manuscript proofreading">
+  <link rel="canonical" href="https://zdzbinden.github.io/FISHFINDER/">
+  <meta property="og:title" content="FISHFINDER — Scientific Name Validator">
+  <meta property="og:description" content="Validate scientific fish names in manuscript text against the AFS 8th edition (Page et al., 2023). Checks spelling, detects synonyms, and flags outdated names.">
+  <meta property="og:url" content="https://zdzbinden.github.io/FISHFINDER/">
+  <meta property="og:type" content="website">
+  <meta http-equiv="Content-Security-Policy-Report-Only" content="default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com https://www.gstatic.com https://unpkg.com 'unsafe-inline'; style-src 'self' https://unpkg.com 'unsafe-inline'; connect-src 'self' https://ipapi.co https://fishfinder-e914a-default-rtdb.firebaseio.com https://*.tile.openstreetmap.org; img-src 'self' https://*.tile.openstreetmap.org data:; font-src 'self';">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "FISHFINDER",
+    "description": "Validates scientific fish names in manuscript text against the AFS 8th edition (Page et al., 2023). Checks spelling, detects synonyms, and flags outdated names.",
+    "url": "https://zdzbinden.github.io/FISHFINDER/",
+    "applicationCategory": "ScienceApplication",
+    "operatingSystem": "Any (web browser)",
+    "offers": { "@type": "Offer", "price": "0" },
+    "author": {
+      "@type": "Person",
+      "name": "Zachary D. Zbinden"
+    }
+  }
+  </script>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
+<a href="#manuscript-text" class="skip-link">Skip to content</a>
 
 <!-- ── Info modal ─────────────────────────────────────────────────────────── -->
 <div id="info-modal" class="modal-overlay" hidden>
@@ -41,7 +66,7 @@
       <p>Several well-known names were revised. Notably, Largemouth Bass changed from <em>Micropterus salmoides</em> to <em>Micropterus nigricans</em>; <em>Micropterus salmoides</em> now refers exclusively to Florida Bass. Names flagged <span class="hl changed">CHANGED</span> warrant careful review.</p>
 
       <h3>Privacy</h3>
-      <p>No text you enter is transmitted off your device. Anonymous usage statistics (approximate location from IP address, scan counts) are collected to document tool reach and impact.</p>
+      <p>No text you enter is transmitted off your device. Anonymous usage statistics (approximate location from your IP address via ipapi.co, scan counts) are collected to document tool reach and impact.</p>
     </div>
   </div>
 </div>
@@ -50,7 +75,7 @@
 
   <!-- Brand header — mimics Lowrance top bar -->
   <div class="device-header">
-    <div class="brand">FISHFINDER</div>
+    <h1 class="brand">FISHFINDER</h1>
     <div class="model">FF-8</div>
   </div>
 
@@ -85,7 +110,8 @@
           <span id="file-name" class="file-name"></span>
         </div>
         <input type="file" id="file-input"
-               accept=".txt,.csv,.docx,.xlsx,.xls,.pdf" hidden>
+               accept=".txt,.csv,.docx,.xlsx,.xls,.pdf"
+               aria-label="Upload a text, Word, Excel, or PDF file" hidden>
 
         <!-- Results (hidden until scan) -->
         <div id="results-section" hidden>
@@ -104,25 +130,26 @@
           <div class="results-grid">
 
             <div class="panel">
-              <div class="panel-header">SPECIES DETECTED <span id="species-count" class="species-badge"></span></div>
+              <div class="panel-header">SPECIES DETECTED <span id="species-count" class="species-badge" aria-live="polite"></span></div>
               <div id="highlighted-text" class="highlighted-text"></div>
             </div>
 
             <div class="panel">
               <div class="panel-header">
                 ISSUES DETECTED
-                <span id="issue-count" class="issue-badge"></span>
+                <span id="issue-count" class="issue-badge" aria-live="polite"></span>
               </div>
               <p id="no-issues" class="no-issues" hidden>
                 ALL CLEAR &mdash; no issues detected
               </p>
               <div id="table-wrap">
                 <table id="summary-table" hidden>
+                  <caption class="sr-only">Issues detected in species names</caption>
                   <thead>
                     <tr>
-                      <th>Name</th>
-                      <th>Status</th>
-                      <th>Suggestion</th>
+                      <th scope="col">Name</th>
+                      <th scope="col">Status</th>
+                      <th scope="col">Suggestion</th>
                     </tr>
                   </thead>
                   <tbody id="summary-tbody"></tbody>
@@ -157,7 +184,7 @@
 
 <!-- ── Citations panel ───────────────────────────────────────────────────── -->
 <section class="citations-section">
-  <div class="citations-header">REFERENCES &amp; CITATIONS</div>
+  <h2 class="citations-header">REFERENCES &amp; CITATIONS</h2>
   <div class="citations-body" id="citations-body">
     <p class="citation-entry">
       Page, L.M., Espinosa-P&eacute;rez, H., Findley, L.T., Gilbert, C.R., Lea, R.N., Mandrak, N.E.,
@@ -181,7 +208,7 @@
 
 <!-- ── Usage dashboard ──────────────────────────────────────────────────── -->
 <section class="dashboard">
-  <div class="dashboard-header">USAGE STATISTICS</div>
+  <h2 class="dashboard-header">USAGE STATISTICS</h2>
   <div class="stats-row">
     <div class="stat-card">
       <div class="stat-value" id="stat-sessions">—</div>
@@ -197,7 +224,7 @@
     </div>
   </div>
   <div id="usage-map" class="usage-map"></div>
-  <p class="dashboard-note">Anonymous usage data &mdash; approximate location from IP address. No text is transmitted off your device.</p>
+  <p class="dashboard-note">Anonymous usage data &mdash; approximate location from your IP address via ipapi.co. No text is transmitted off your device.</p>
 </section>
 
 <script src="js/app.js"></script>
