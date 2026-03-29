@@ -6,14 +6,10 @@
   'use strict';
 
   // ── State ────────────────────────────────────────────────────────────────
-  let db          = null;
-  let validSet    = new Set();   // lowercase binomials → canonical form
-  let validMap    = new Map();   // lowercase  → canonical cased binomial
-  let synonymMap  = new Map();   // lowercase old name → canonical new name
-  let generaSet   = new Set();   // lowercase genus strings
-  let commonNameMap = new Map(); // lowercase common name → {binomial, commonName}
-  let validList   = [];          // [{genus, species, binomial}] for fuzzy scan
-  let synonymList = [];          // [{genus, species, oldName, newName}] for fuzzy synonym scan
+  let db      = null;
+  let lookups = null;   // built by FishEngine.buildLookups(db)
+  let lastFindings = null;  // cached from most recent scan
+  let lastScanText = null;  // text that produced lastFindings
 
   // ── DOM refs ─────────────────────────────────────────────────────────────
   const loadingEl      = document.getElementById('loading');
@@ -54,271 +50,17 @@
       return;
     }
 
-    // Build lookup structures
-    for (const [canonical] of Object.entries(db.valid_names)) {
-      const lower = canonical.toLowerCase();
-      validSet.add(lower);
-      validMap.set(lower, canonical);
-
-      const parts = canonical.split(' ');
-      validList.push({
-        genus:    parts[0],
-        species:  parts.slice(1).join(' '),
-        binomial: canonical,
-        lGenus:   parts[0].toLowerCase(),
-        lSpecies: parts.slice(1).join(' ').toLowerCase(),
-      });
-    }
-
-    // Build common name lookup
-    for (const [canonical, info] of Object.entries(db.valid_names)) {
-      const cn = info.common_name_en;
-      if (cn) commonNameMap.set(cn.toLowerCase(), { binomial: canonical, commonName: cn });
-    }
-
-    for (const [oldName, newName] of Object.entries(db.synonyms)) {
-      synonymMap.set(oldName.toLowerCase(), newName);
-      const parts = oldName.split(' ');
-      if (parts.length >= 2) {
-        synonymList.push({
-          lGenus:   parts[0].toLowerCase(),
-          lSpecies: parts.slice(1).join(' ').toLowerCase(),
-          oldName,
-          newName,
-        });
-      }
-    }
-
-    for (const genus of db.genera) {
-      generaSet.add(genus.toLowerCase());
-    }
+    // Build lookup structures (engine.js)
+    lookups = FishEngine.buildLookups(db);
 
     loadingEl.hidden  = true;
     checkBtn.disabled = false;
 
     console.log(
-      `Database loaded: ${validSet.size} valid names, ` +
-      `${synonymMap.size} synonyms, ${generaSet.size} genera, ` +
-      `${commonNameMap.size} common names`
+      `Database loaded: ${lookups.validSet.size} valid names, ` +
+      `${lookups.synonymMap.size} synonyms, ${lookups.generaSet.size} genera, ` +
+      `${lookups.commonNameMap.size} common names`
     );
-  }
-
-  // ── Levenshtein distance (Wagner-Fischer, with early-exit) ────────────────
-  function levenshtein(a, b, maxDist) {
-    if (Math.abs(a.length - b.length) > maxDist) return maxDist + 1;
-    const m = a.length, n = b.length;
-    // Use two rows
-    let prev = new Uint16Array(n + 1);
-    let curr = new Uint16Array(n + 1);
-    for (let j = 0; j <= n; j++) prev[j] = j;
-
-    for (let i = 1; i <= m; i++) {
-      curr[0] = i;
-      let rowMin = curr[0];
-      for (let j = 1; j <= n; j++) {
-        const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-        curr[j] = Math.min(prev[j] + 1, curr[j - 1] + 1, prev[j - 1] + cost);
-        if (curr[j] < rowMin) rowMin = curr[j];
-      }
-      if (rowMin > maxDist) return maxDist + 1; // prune
-      [prev, curr] = [curr, prev];
-    }
-    return prev[n];
-  }
-
-  // ── Find closest valid binomial ────────────────────────────────────────────
-  function findClosestMatch(genus, species, maxDist) {
-    const lg = genus.toLowerCase();
-    const ls = species.toLowerCase();
-    let bestDist   = maxDist + 1;
-    let bestName   = null;
-
-    for (const entry of validList) {
-      // First-letter filter on genus (fast rejection)
-      if (entry.lGenus[0] !== lg[0]) continue;
-      // Length filter
-      if (Math.abs(entry.lGenus.length  - lg.length) > maxDist) continue;
-
-      const gd = levenshtein(lg, entry.lGenus, maxDist);
-      if (gd > maxDist) continue;
-
-      // First-letter filter on species
-      if (entry.lSpecies[0] !== ls[0] &&
-          Math.abs(entry.lSpecies.charCodeAt(0) - ls.charCodeAt(0)) > 2) continue;
-
-      const sd = levenshtein(ls, entry.lSpecies, maxDist);
-      const total = gd + sd;
-
-      if (total < bestDist) {
-        bestDist = total;
-        bestName = entry.binomial;
-        if (total === 0) break; // exact (shouldn't happen here but be safe)
-      }
-    }
-    return bestName ? { name: bestName, dist: bestDist } : null;
-  }
-
-  // ── Find closest synonym binomial ─────────────────────────────────────────
-  function findClosestSynonym(genus, species, maxDist) {
-    const lg = genus.toLowerCase();
-    const ls = species.toLowerCase();
-    let bestDist = maxDist + 1;
-    let bestEntry = null;
-
-    for (const entry of synonymList) {
-      if (entry.lGenus[0] !== lg[0]) continue;
-      if (Math.abs(entry.lGenus.length - lg.length) > maxDist) continue;
-
-      const gd = levenshtein(lg, entry.lGenus, maxDist);
-      if (gd > maxDist) continue;
-
-      if (entry.lSpecies[0] !== ls[0] &&
-          Math.abs(entry.lSpecies.charCodeAt(0) - ls.charCodeAt(0)) > 2) continue;
-
-      const sd = levenshtein(ls, entry.lSpecies, maxDist);
-      const total = gd + sd;
-
-      if (total < bestDist) {
-        bestDist = total;
-        bestEntry = entry;
-        if (total === 0) break;
-      }
-    }
-    return bestEntry ? { oldName: bestEntry.oldName, newName: bestEntry.newName, dist: bestDist } : null;
-  }
-
-  // Species abbreviations that should never be treated as epithets
-  const SPECIES_ABBREVS = new Set(['sp', 'spp', 'cf', 'aff', 'nr', 'var', 'subsp']);
-
-  // ── Classify a candidate binomial ──────────────────────────────────────────
-  // Returns null if the name doesn't look like a fish name at all.
-  function classifyName(genus, species) {
-    if (SPECIES_ABBREVS.has(species.toLowerCase())) return null;
-
-    const binomial = `${genus} ${species}`;
-    const lower    = binomial.toLowerCase();
-
-    // 1. Exact valid match
-    if (validSet.has(lower)) {
-      const canonical  = validMap.get(lower);
-      const info       = db.valid_names[canonical];
-      const commonName = info ? (info.common_name_en || '') : '';
-      const changed    = info && info.flags && info.flags.includes('*');
-      return { type: changed ? 'changed' : 'valid', canonical, suggestion: null, commonName };
-    }
-
-    // 2. Known synonym / outdated name
-    if (synonymMap.has(lower)) {
-      return { type: 'outdated', canonical: binomial, suggestion: synonymMap.get(lower) };
-    }
-
-    // 2b. Fuzzy synonym match (catches misspelled synonyms like Leucisus → Leuciscus)
-    const closestSyn = findClosestSynonym(genus, species, 2);
-    if (closestSyn && closestSyn.dist > 0 && closestSyn.dist <= 2) {
-      return { type: 'outdated', canonical: binomial, suggestion: closestSyn.newName };
-    }
-
-    // 3. Common name match
-    const commonMatch = commonNameMap.get(lower);
-    if (commonMatch) {
-      return {
-        type: 'common', canonical: binomial,
-        suggestion: commonMatch.binomial, commonName: commonMatch.commonName,
-      };
-    }
-
-    // 4. Exact genus → fuzzy species match or unknown species
-    if (generaSet.has(genus.toLowerCase())) {
-      const closest = findClosestMatch(genus, species, 2);
-      if (closest && closest.dist <= 2) {
-        return { type: 'misspelled', canonical: binomial, suggestion: closest.name };
-      }
-      return { type: 'unknown', canonical: binomial, suggestion: null };
-    }
-
-    // 5. Fuzzy full binomial (catches misspelled genera like Micropteris → Micropterus)
-    const closest = findClosestMatch(genus, species, 2);
-    if (closest && closest.dist <= 2) {
-      return { type: 'misspelled', canonical: binomial, suggestion: closest.name };
-    }
-
-    // 6. Not a fish name
-    return null;
-  }
-
-  // ── Extract candidate names from text ─────────────────────────────────────
-  // Matches: Capitalized word (≥3 chars) followed by lowercase word (≥3 chars)
-  // Optionally a second lowercase word (subspecies) is captured but the binomial
-  // checked is always genus + species (first two words).
-  const CANDIDATE_RE = /\b([A-Z][a-z]{2,})\s+([a-z]{2,})\b/g;
-
-  function extractCandidates(text) {
-    const hits = [];
-    let m;
-    CANDIDATE_RE.lastIndex = 0;
-    while ((m = CANDIDATE_RE.exec(text)) !== null) {
-      hits.push({
-        genus:   m[1],
-        species: m[2],
-        text:    m[0],
-        index:   m.index,
-      });
-    }
-    return hits;
-  }
-
-  // ── Extract common-name matches from text ──────────────────────────────────
-  // Builds a prefix map (first word → list of common names) for efficient lookup.
-  // Only matches multi-word (2+) common names to avoid false positives.
-  let commonNamePrefixMap = null;   // built lazily on first scan
-
-  function buildCommonNamePrefixMap() {
-    commonNamePrefixMap = new Map();
-    for (const [lowerName, info] of commonNameMap) {
-      const words = lowerName.split(/\s+/);
-      if (words.length < 2) continue;   // skip single-word names
-      const first = words[0];
-      if (!commonNamePrefixMap.has(first)) commonNamePrefixMap.set(first, []);
-      commonNamePrefixMap.get(first).push({ lower: lowerName, info, wordCount: words.length });
-    }
-  }
-
-  function extractCommonNames(text, binomialSpans) {
-    if (!commonNamePrefixMap) buildCommonNamePrefixMap();
-    const hits = [];
-    // Regex to find word boundaries — match sequences of letters/hyphens
-    const WORD_RE = /[a-zA-Z][-a-zA-Z]*/g;
-    const lowerText = text.toLowerCase();
-    let wm;
-    WORD_RE.lastIndex = 0;
-    while ((wm = WORD_RE.exec(text)) !== null) {
-      const firstWord = wm[0].toLowerCase();
-      const candidates = commonNamePrefixMap.get(firstWord);
-      if (!candidates) continue;
-
-      for (const cand of candidates) {
-        const end = wm.index + cand.lower.length;
-        if (end > text.length) continue;
-        const slice = lowerText.slice(wm.index, end);
-        if (slice !== cand.lower) continue;
-        // Ensure it ends at a word boundary
-        if (end < text.length && /[a-zA-Z-]/.test(text[end])) continue;
-        // Skip if this span overlaps with an already-found binomial
-        const overlaps = binomialSpans.some(
-          s => wm.index < s.end && end > s.start
-        );
-        if (overlaps) continue;
-        hits.push({
-          text:       text.slice(wm.index, end),
-          binomial:   text.slice(wm.index, end),
-          index:      wm.index,
-          type:       'common',
-          suggestion: cand.info.binomial,
-          commonName: cand.info.commonName,
-        });
-      }
-    }
-    return hits;
   }
 
   // ── HTML escaping ──────────────────────────────────────────────────────────
@@ -360,11 +102,11 @@
 
     // Yield to browser to update button state, then process
     setTimeout(() => {
-      const candidates = extractCandidates(text);
+      const candidates = FishEngine.extractCandidates(text);
       const findings   = [];
 
       for (const cand of candidates) {
-        const result = classifyName(cand.genus, cand.species);
+        const result = FishEngine.classifyName(lookups, cand.genus, cand.species);
         if (!result) continue;
         findings.push({
           text:       cand.text,
@@ -378,8 +120,12 @@
 
       // Second pass: scan for common names (2+ words, case-insensitive)
       const binomialSpans = findings.map(f => ({ start: f.index, end: f.index + f.text.length }));
-      const commonHits = extractCommonNames(text, binomialSpans);
+      const commonHits = FishEngine.extractCommonNames(lookups, text, binomialSpans);
       findings.push(...commonHits);
+
+      // Cache for copyText reuse
+      lastFindings = findings;
+      lastScanText = text;
 
       // Track species count (non-blocking)
       trackSpecies(findings.length);
@@ -708,60 +454,85 @@
     checkBtn.textContent = 'SCAN';
   }
 
-  // ── Copy corrected text to clipboard ──────────────────────────────────────
-  function copyText() {
-    const text     = textarea.value;
-    const findings = [];
-    const cands    = extractCandidates(text);
-
-    for (const cand of cands) {
-      const result = classifyName(cand.genus, cand.species);
-      if (!result) continue;
-      findings.push({
-        text:       cand.text,
-        index:      cand.index,
-        type:       result.type,
-        suggestion: result.suggestion,
-      });
-    }
-
-    const corrected = buildCorrectedText(text, findings);
-    navigator.clipboard.writeText(corrected).then(() => {
-      const prev = copyBtn.textContent;
-      copyBtn.textContent = 'COPIED!';
-      setTimeout(() => { copyBtn.textContent = prev; }, 2000);
+  // ── Clipboard helper ─────────────────────────────────────────────────────
+  function copyToClipboard(text, btn) {
+    navigator.clipboard.writeText(text).then(() => {
+      const prev = btn.textContent;
+      btn.textContent = 'COPIED!';
+      setTimeout(() => { btn.textContent = prev; }, 2000);
     }).catch(() => {
-      // Fallback for browsers without clipboard API
       const ta = document.createElement('textarea');
-      ta.value = corrected;
+      ta.value = text;
       ta.style.position = 'fixed';
       ta.style.opacity  = '0';
       document.body.appendChild(ta);
       ta.select();
       document.execCommand('copy');
       document.body.removeChild(ta);
-      copyBtn.textContent = 'COPIED!';
-      setTimeout(() => { copyBtn.textContent = 'COPY'; }, 2000);
+      const prev = btn.textContent;
+      btn.textContent = 'COPIED!';
+      setTimeout(() => { btn.textContent = prev; }, 2000);
     });
   }
 
+  // ── Copy corrected text to clipboard ──────────────────────────────────────
+  function copyText() {
+    const text = textarea.value;
+    // Reuse cached findings if text hasn't changed since last scan
+    const findings = (lastFindings && lastScanText === text)
+      ? lastFindings
+      : (() => {
+          const cands = FishEngine.extractCandidates(text);
+          const results = [];
+          for (const cand of cands) {
+            const result = FishEngine.classifyName(lookups, cand.genus, cand.species);
+            if (!result) continue;
+            results.push({ text: cand.text, index: cand.index, type: result.type, suggestion: result.suggestion });
+          }
+          return results;
+        })();
+
+    copyToClipboard(buildCorrectedText(text, findings), copyBtn);
+  }
+
   // ── Lazy script loader (CDN libraries loaded on first use) ────────────────
-  function loadScript(src) {
+  function loadScript(src, integrity) {
     return new Promise((resolve, reject) => {
       if (document.querySelector(`script[src="${src}"]`)) { resolve(); return; }
       const s = document.createElement('script');
       s.src = src;
+      if (integrity) { s.integrity = integrity; s.crossOrigin = 'anonymous'; }
       s.onload = resolve;
       s.onerror = () => reject(new Error('Failed to load ' + src.split('/').pop()));
       document.head.appendChild(s);
     });
   }
 
+  function loadStyle(href, integrity) {
+    if (document.querySelector(`link[href="${href}"]`)) return;
+    const l = document.createElement('link');
+    l.rel = 'stylesheet';
+    l.href = href;
+    if (integrity) { l.integrity = integrity; l.crossOrigin = 'anonymous'; }
+    document.head.appendChild(l);
+  }
+
   const CDN = {
-    mammoth: 'https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js',
-    xlsx:    'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',
-    pdfjs:   'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js',
-    pdfjsW:  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js',
+    mammoth:     { src: 'https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js',
+                   integrity: 'sha384-nFoSjZIoH3CCp8W639jJyQkuPHinJ2NHe7on1xvlUA7SuGfJAfvMldrsoAVm6ECz' },
+    xlsx:        { src: 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',
+                   integrity: 'sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw' },
+    pdfjs:       { src: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js',
+                   integrity: 'sha384-/1qUCSGwTur9vjf/z9lmu/eCUYbpOTgSjmpbMQZ1/CtX2v/WcAIKqRv+U1DUCG6e' },
+    pdfjsW:      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js',  // no SRI (worker)
+    firebaseApp: { src: 'https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js',
+                   integrity: 'sha384-ajMUFBUFMCyjh8uxJg6bkGcKe9RTolyjwbxB3yES0QQMenP3Oztj/W9vA2SJPcIh' },
+    firebaseDb:  { src: 'https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js',
+                   integrity: 'sha384-f6/UpzjTjIXASlp20cArQsaRh1EvHVJd5kegy/gYR9W2D0a32TnEqUEiW4Zm/5O0' },
+    leafletJs:   { src: 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
+                   integrity: 'sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH' },
+    leafletCss:  { src: 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
+                   integrity: 'sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H' },
   };
 
   // ── File upload handling ────────────────────────────────────────────────────
@@ -779,15 +550,15 @@
           text = await file.text();
           break;
         case 'docx':
-          await loadScript(CDN.mammoth);
+          await loadScript(CDN.mammoth.src, CDN.mammoth.integrity);
           text = await extractDocx(file);
           break;
         case 'xlsx': case 'xls':
-          await loadScript(CDN.xlsx);
+          await loadScript(CDN.xlsx.src, CDN.xlsx.integrity);
           text = await extractXlsx(file);
           break;
         case 'pdf':
-          await loadScript(CDN.pdfjs);
+          await loadScript(CDN.pdfjs.src, CDN.pdfjs.integrity);
           pdfjsLib.GlobalWorkerOptions.workerSrc = CDN.pdfjsW;
           text = await extractPdf(file);
           break;
@@ -889,10 +660,10 @@
   // ── Firebase config ────────────────────────────────────────────────────────
   // To enable the usage dashboard:
   //  1. Go to console.firebase.google.com → create a project
-  //  2. Add a Realtime Database (start in test mode for now)
+  //  2. Add a Realtime Database
   //  3. Replace the values below with your project's config
-  //  4. In Firebase Console → Realtime Database → Rules, use:
-  //     { "rules": { "fishfinder": { ".read": true, ".write": true } } }
+  //  4. Deploy security rules: firebase deploy --only database
+  //     (see database.rules.json in project root)
   const FIREBASE_CONFIG = {
     apiKey:            'AIzaSyBi-nz0TTX502uIqyXx5MsohvwHf0H8KAU',
     authDomain:        'fishfinder-e914a.firebaseapp.com',
@@ -908,19 +679,11 @@
 
   async function initFirebase() {
     if (_fbDb) return _fbDb;
-    await loadScript('https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js');
-    await loadScript('https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js');
+    await loadScript(CDN.firebaseApp.src, CDN.firebaseApp.integrity);
+    await loadScript(CDN.firebaseDb.src, CDN.firebaseDb.integrity);
     if (!window.firebase.apps.length) window.firebase.initializeApp(FIREBASE_CONFIG);
     _fbDb = window.firebase.database();
     return _fbDb;
-  }
-
-  function loadStyle(href) {
-    if (document.querySelector(`link[href="${href}"]`)) return;
-    const l = document.createElement('link');
-    l.rel = 'stylesheet';
-    l.href = href;
-    document.head.appendChild(l);
   }
 
   // ── Track visit (once per session) ────────────────────────────────────────
@@ -980,8 +743,8 @@
       document.getElementById('stat-countries').textContent = countries.size.toLocaleString();
 
       // Map
-      loadStyle('https://unpkg.com/leaflet@1.9.4/dist/leaflet.css');
-      await loadScript('https://unpkg.com/leaflet@1.9.4/dist/leaflet.js');
+      loadStyle(CDN.leafletCss.src, CDN.leafletCss.integrity);
+      await loadScript(CDN.leafletJs.src, CDN.leafletJs.integrity);
 
       const map = window.L.map('usage-map', {
         center: [20, 0], zoom: 2,
@@ -1043,22 +806,7 @@
       'Available at: https://zdzbinden.github.io/FISHFINDER/',
     ].join('\n\n');
 
-    navigator.clipboard.writeText(text).then(() => {
-      const prev = citeBtn.textContent;
-      citeBtn.textContent = 'COPIED!';
-      setTimeout(() => { citeBtn.textContent = prev; }, 2000);
-    }).catch(() => {
-      const ta = document.createElement('textarea');
-      ta.value = text;
-      ta.style.position = 'fixed'; ta.style.opacity = '0';
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand('copy');
-      document.body.removeChild(ta);
-      const prev = citeBtn.textContent;
-      citeBtn.textContent = 'COPIED!';
-      setTimeout(() => { citeBtn.textContent = prev; }, 2000);
-    });
+    copyToClipboard(text, citeBtn);
   }
 
   // ── Additional event listeners ─────────────────────────────────────────────

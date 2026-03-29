@@ -1,0 +1,26 @@
+{
+  "rules": {
+    "fishfinder": {
+      "visits": {
+        ".read": true,
+        ".indexOn": ["ts"],
+        "$pushId": {
+          ".write": true,
+          ".validate": "newData.hasChildren(['lat','lng','country','city','ts'])",
+          "lat":     { ".validate": "newData.isNumber() && newData.val() >= -90 && newData.val() <= 90" },
+          "lng":     { ".validate": "newData.isNumber() && newData.val() >= -180 && newData.val() <= 180" },
+          "country": { ".validate": "newData.isString() && newData.val().length <= 100" },
+          "city":    { ".validate": "newData.isString() && newData.val().length <= 100" },
+          "ts":      { ".validate": "newData.isNumber() && newData.val() <= now" },
+          "$other":  { ".validate": false }
+        }
+      },
+      "stats": {
+        ".read": true,
+        "sessions":      { ".write": true, ".validate": "newData.isNumber() && ((!data.exists() && newData.val() === 1) || (data.exists() && newData.val() === data.val() + 1))" },
+        "species_total": { ".write": true, ".validate": "newData.isNumber() && newData.val() >= data.val()" },
+        "$other":        { ".validate": false }
+      }
+    }
+  }
+}

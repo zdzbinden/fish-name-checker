@@ -19,6 +19,12 @@ __pycache__/
 # Publication drafts (local only)
 publication/
 
+# Node
+node_modules/
+
+# Firebase
+.firebase/
+
 # OS
 .DS_Store
 Thumbs.db

@@ -92,6 +92,66 @@ When a new edition of *Names of Fishes* is published:
 
 ---
 
+## Architecture
+
+The classification engine (`js/engine.js`) is a pure module with no DOM
+dependencies. It exports functions via the `FishEngine` global (in the browser)
+or `module.exports` (in Node.js). `js/app.js` handles the UI, Firebase
+analytics, animations, and event wiring — it delegates all name validation to
+`FishEngine.*`.
+
+---
+
+## Testing
+
+```powershell
+cd fishfinder
+node --test test/*.test.js
+```
+
+Uses the Node.js built-in test runner (`node:test` + `node:assert`). Zero npm
+dependencies. Tests load `fish_names.json` directly and exercise the engine
+against the real dataset (45 tests across 4 files):
+
+| File | Coverage |
+|------|----------|
+| `levenshtein.test.js` | Edit-distance algorithm (identical, substitution, insertion, deletion, early-exit, pruning) |
+| `classify.test.js` | Classification decision tree (valid, changed, outdated, misspelled, unknown, common name, abbreviation filtering) |
+| `extract.test.js` | Binomial regex extraction + common name matching (exact and fuzzy) |
+| `edge-cases.test.js` | Fuzzy matching boundaries, genus first-letter filter, charCode proximity, database integrity |
+
+---
+
+## Security
+
+- **Content Security Policy (CSP):** Enforced via `<meta>` tag with path-scoped
+  CDN entries and Firebase transport support (scripts, WebSocket, iframes).
+- **Subresource Integrity (SRI):** All CDN-loaded scripts and stylesheets
+  include `sha384` integrity hashes and `crossorigin="anonymous"` attributes.
+  The `loadScript()` and `loadStyle()` helpers in `app.js` apply SRI
+  automatically from the centralized `CDN` config object.
+- **Firebase security rules:** Writes restricted to `fishfinder/visits` (push
+  with schema validation for lat/lng bounds, string lengths, timestamp sanity)
+  and `fishfinder/stats` (increment-only counters). No extra fields allowed.
+  Rules deployed via `firebase deploy --only database` from
+  `database.rules.json` at the project root.
+
+---
+
+## Accessibility
+
+FISHFINDER targets WCAG AA compliance (Lighthouse Accessibility score: 100):
+
+- All interactive elements have `:focus-visible` indicators
+- `aria-label` on highlight spans, `aria-live` on count badges
+- Screen-reader-friendly results table (`<caption>`, `scope="col"`)
+- Modal focus trap with return-to-trigger on close
+- Skip-to-content link for keyboard navigation
+- Semantic headings (`<h1>`/`<h2>`) and `<main>` landmark
+- All 23 text/background color pairs pass 4.5:1 contrast ratio
+
+---
+
 ## GitHub Pages deployment
 
 1. Push the repository to GitHub.

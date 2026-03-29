@@ -34,7 +34,7 @@ Click **COPY** to get your text back with outdated names auto-replaced.
 
 ## Try it
 
-> **Live site:** *Coming soon on GitHub Pages*
+> **Live site:** [zdzbinden.github.io/FISHFINDER](https://zdzbinden.github.io/FISHFINDER/)
 
 To run locally:
 
@@ -57,13 +57,16 @@ See [`fishfinder/README.md`](fishfinder/README.md) for full pipeline documentati
 
 ```
 FISHFINDER/
-├── parse_pdf.py              # Step 1: AFS table PDF -> fish_names.json
+├── parse_pdf.py              # Step 1: AFS table PDF → fish_names.json
 ├── scrape_eschmeyer.py       # Step 2: synonym enrichment from Eschmeyer's
-├── fishfinder/               # Static web app (GitHub Pages target)
+├── database.rules.json       # Firebase Realtime DB security rules
+├── fishfinder/               # Static web app (GitHub Pages)
 │   ├── index.html
 │   ├── css/style.css         # Retro Lowrance fish-finder aesthetic
-│   ├── js/app.js
-│   └── data/fish_names.json  # Generated name database
+│   ├── js/engine.js          # Classification engine (shared browser/Node.js)
+│   ├── js/app.js             # UI, Firebase analytics, event handling
+│   ├── data/fish_names.json  # Generated name database
+│   └── test/                 # Automated test suite (Node.js)
 ├── names_of_fishes/          # Source PDFs (copyrighted, not in repo)
 └── publication/              # Companion manuscript materials
 ```
