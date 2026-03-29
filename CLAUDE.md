@@ -28,6 +28,18 @@ FISHFINDER/
 │   ├── Names-of-Fishes-8-Table1.pdf  ← AFS table-only PDF (source for parser)
 │   └── NAMES OF FISHES 8th.pdf       ← full book PDF (NOT used by parser)
 │   (both PDFs are gitignored — copyrighted)
+├── publication/                   ← FISHERIES companion paper & meta-analysis
+│   ├── appendix.md               ← Technical appendix source (Markdown)
+│   ├── generate_appendix.py      ← Reads appendix.md → styled .docx
+│   ├── drafts/                   ← Archived old files
+│   └── meta_analysis/            ← Automated literature analysis pipeline
+│       ├── config.py             ← Paths, API URLs, rate limits, search terms
+│       ├── 01_discover_papers.py ← OpenAlex API → papers.json
+│       ├── 02_download_pdfs.py   ← Unpaywall/OA → cache/pdfs/
+│       ├── 03_extract_text.py    ← PyMuPDF → cache/texts/
+│       ├── 04_analyze_names.js   ← Node.js engine wrapper → cache/results/
+│       ├── 05_summarize.py       ← Aggregate stats → summary.json + .md
+│       └── run_pipeline.py       ← Orchestrator (runs steps 1-5)
 └── fishfinder/                   ← static web app (GitHub Pages target)
     ├── index.html
     ├── css/style.css             ← Lowrance-inspired retro fish finder UI
