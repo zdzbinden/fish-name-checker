@@ -384,69 +384,328 @@
       // Track species count (non-blocking)
       trackSpecies(findings.length);
 
-      // ── Render species list
-      highlightedEl.innerHTML = buildSpeciesListHTML(findings);
-
-      // ── Render summary table
-      const issues = findings.filter(f => f.type !== 'valid' && f.type !== 'common');
-
-      if (issues.length === 0) {
-        noIssuesEl.hidden  = false;
-        summaryTable.hidden = true;
-        issueBadge.textContent = '';
+      // Play animation if fish were found, then render results
+      const doRender = () => renderResults(findings);
+      if (findings.length > 0 &&
+          !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        playPostScanAnimation(textarea.value, findings, doRender);
       } else {
-        noIssuesEl.hidden   = true;
-        summaryTable.hidden = false;
-        issueBadge.textContent = String(issues.length);
+        doRender();
+      }
+    }, 10);
+  }
 
-        // Deduplicate by binomial (keep first occurrence)
-        const seen    = new Set();
-        const deduped = [];
-        for (const f of issues) {
-          if (!seen.has(f.binomial)) {
-            seen.add(f.binomial);
-            deduped.push(f);
+  // ── Post-scan animation ──────────────────────────────────────────────────
+  const FISH_SPRITES = [
+    // Side-view fish (16x8)
+    { w: 16, h: 8, data: [
+      [0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0],
+      [0,0,0,0,0,1,1,1,1,1,0,0,0,0,0,0],
+      [1,1,0,0,1,1,1,1,1,1,1,1,1,0,0,0],
+      [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0],
+      [1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,0],
+      [1,1,0,0,1,1,1,1,1,1,1,1,1,0,0,0],
+      [0,0,0,0,0,1,1,1,1,1,0,0,0,0,0,0],
+      [0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0],
+    ]},
+    // Small minnow (10x5)
+    { w: 10, h: 5, data: [
+      [0,0,0,0,1,1,1,0,0,0],
+      [1,0,0,1,1,1,1,1,1,0],
+      [1,1,1,1,1,0,1,1,1,1],
+      [1,0,0,1,1,1,1,1,1,0],
+      [0,0,0,0,1,1,1,0,0,0],
+    ]},
+    // Bass-like fish (20x10)
+    { w: 20, h: 10, data: [
+      [0,0,0,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,0,0],
+      [0,0,0,0,0,0,0,1,1,1,1,1,1,0,0,0,0,0,0,0],
+      [0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,0,0,0,0,0],
+      [1,1,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0],
+      [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0],
+      [1,1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1],
+      [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0],
+      [1,1,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0],
+      [0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,0,0,0,0,0],
+      [0,0,0,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,0,0],
+    ]},
+    // Tiny fish (8x4)
+    { w: 8, h: 4, data: [
+      [0,0,0,1,1,0,0,0],
+      [1,0,1,1,0,1,1,0],
+      [1,1,1,1,1,1,1,1],
+      [0,0,0,1,1,0,0,0],
+    ]},
+  ];
+
+  function playPostScanAnimation(text, findings, onComplete) {
+    const screenEl = document.querySelector('.screen');
+    const rect     = screenEl.getBoundingClientRect();
+    const dpr      = window.devicePixelRatio || 1;
+
+    // Create canvas
+    const canvas = document.createElement('canvas');
+    canvas.className = 'scan-animation-canvas';
+    canvas.width  = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    canvas.style.width  = rect.width + 'px';
+    canvas.style.height = rect.height + 'px';
+    screenEl.appendChild(canvas);
+
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+    ctx.imageSmoothingEnabled = false;
+
+    const W = rect.width;
+    const H = rect.height;
+
+    // Colors matching LCD theme
+    const LCD_BG   = '#8d9b76';
+    const LCD_TEXT  = '#0e1a04';
+    const LCD_MUTED = '#1c2c0c';
+
+    // Pixel scale for sprites
+    const pxScale = Math.max(2, Math.floor(W / 200));
+
+    // Shorten on mobile
+    const isMobile   = W < 500;
+    const TOTAL_TIME = isMobile ? 2200 : 3500;
+
+    // Phase timing
+    const SONAR_END  = isMobile ? 1200 : 1800;  // sonar pulses
+    const P3_START   = isMobile ? 1000 : 1600;   // fish appear
+    const P3_END     = isMobile ? 1500 : 2400;   // fish fully visible
+    const P4_START   = isMobile ? 1300 : 2200;   // swim start
+    const FADE_START = TOTAL_TIME - 400;          // canvas fade out
+
+    // Sonar config
+    const sonarCenterX = W / 2;
+    const sonarCenterY = H * 0.35;
+    const maxRadius    = Math.max(W, H) * 0.8;
+    const pulseCount   = isMobile ? 3 : 4;
+    const pulseInterval = SONAR_END / (pulseCount + 1);
+
+    // Build fish objects (max 15)
+    const fishCount = Math.min(findings.length, 15);
+    const fishes = [];
+    for (let i = 0; i < fishCount; i++) {
+      const sprite = FISH_SPRITES[i % FISH_SPRITES.length];
+      fishes.push({
+        sprite,
+        x: 40 + Math.random() * (W - 120),
+        y: 30 + Math.random() * (H - 80),
+        vx: (Math.random() > 0.5 ? 1 : -1) * (0.8 + Math.random() * 1.2),
+        phase: Math.random() * Math.PI * 2,
+        alpha: 0,
+        active: false,
+      });
+    }
+
+    // Animation state
+    let startTime = null;
+    let rafId     = null;
+    let done      = false;
+
+    function finish() {
+      if (done) return;
+      done = true;
+      if (rafId) cancelAnimationFrame(rafId);
+      canvas.removeEventListener('click', finish);
+      if (canvas.parentNode) canvas.parentNode.removeChild(canvas);
+      onComplete();
+    }
+
+    // Click to skip
+    canvas.addEventListener('click', finish);
+
+    function drawSprite(sprite, x, y, scale, alpha, flipX) {
+      ctx.globalAlpha = alpha;
+      for (let row = 0; row < sprite.h; row++) {
+        for (let col = 0; col < sprite.w; col++) {
+          if (sprite.data[row][col]) {
+            const drawCol = flipX ? (sprite.w - 1 - col) : col;
+            ctx.fillRect(
+              x + drawCol * scale,
+              y + row * scale,
+              scale, scale
+            );
           }
         }
+      }
+      ctx.globalAlpha = 1;
+    }
 
-        const labels = {
-          changed:    'Changed in 8th edition',
-          outdated:   'Outdated / Synonym',
-          misspelled: 'Misspelled',
-          unknown:    'Unknown fish name',
-        };
+    function frame(timestamp) {
+      if (done) return;
+      if (!startTime) startTime = timestamp;
+      const elapsed = timestamp - startTime;
 
-        summaryTbody.innerHTML = '';
-        for (const f of deduped) {
-          let suggestionCell;
-          if (f.type === 'changed') {
-            suggestionCell = f.commonName
-              ? `Now: <em>${esc(f.commonName)}</em> &mdash; confirm intended species`
-              : 'Confirm this is the intended species';
-          } else if (f.suggestion) {
-            const suggInfo    = db.valid_names[f.suggestion];
-            const suggCommon  = suggInfo ? (suggInfo.common_name_en || '') : '';
-            suggestionCell    = `<em>${esc(f.suggestion)}</em>` +
-              (suggCommon ? ` <span class="common-name">(${esc(suggCommon)})</span>` : '');
-          } else {
-            suggestionCell = '—';
-          }
+      if (elapsed >= TOTAL_TIME) { finish(); return; }
 
-          const tr = document.createElement('tr');
-          tr.innerHTML =
-            `<td class="name-cell">${esc(f.binomial)}</td>` +
-            `<td><span class="status-${f.type}">${labels[f.type] || f.type}</span></td>` +
-            `<td>${suggestionCell}</td>`;
-          summaryTbody.appendChild(tr);
+      // Clear canvas with LCD background
+      ctx.fillStyle = LCD_BG;
+      ctx.fillRect(0, 0, W, H);
+
+      // ── Phase 1: Sonar pulses ──
+      if (elapsed < SONAR_END) {
+        for (let i = 0; i < pulseCount; i++) {
+          const pulseStart = i * pulseInterval;
+          const pulseAge = elapsed - pulseStart;
+          if (pulseAge < 0) continue;
+
+          const progress = Math.min(pulseAge / (SONAR_END - pulseStart), 1);
+          const radius = progress * maxRadius;
+          const alpha = (1 - progress) * 0.5;
+
+          if (alpha <= 0) continue;
+
+          ctx.beginPath();
+          ctx.arc(sonarCenterX, sonarCenterY, radius, 0, Math.PI * 2);
+          ctx.strokeStyle = LCD_TEXT;
+          ctx.lineWidth = Math.max(1, 3 - progress * 2);
+          ctx.globalAlpha = alpha;
+          ctx.stroke();
+        }
+        ctx.globalAlpha = 1;
+
+        // Scanning label
+        const dots = '.'.repeat(Math.floor((elapsed / 400) % 4));
+        ctx.fillStyle = LCD_MUTED;
+        ctx.globalAlpha = 0.6;
+        ctx.font = `bold ${Math.max(11, Math.floor(W / 50))}px Consolas, "Courier New", monospace`;
+        ctx.textAlign = 'center';
+        ctx.fillText('SCANNING' + dots, W / 2, H * 0.7);
+        ctx.textAlign = 'start';
+        ctx.globalAlpha = 1;
+      }
+
+      // ── Phase 3: Fish appear ──
+      if (elapsed >= P3_START) {
+        const transformProgress = Math.min((elapsed - P3_START) / (P3_END - P3_START), 1);
+        for (const fish of fishes) {
+          fish.alpha = transformProgress;
+          fish.active = true;
         }
       }
 
-      resultsSection.hidden = false;
-      resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      // ── Phase 4: Fish swim ──
+      if (elapsed >= P4_START) {
+        const swimElapsed = elapsed - P4_START;
+        ctx.fillStyle = LCD_TEXT;
 
-      checkBtn.disabled    = false;
-      checkBtn.textContent = 'SCAN';
-    }, 10);
+        for (const fish of fishes) {
+          if (!fish.active) continue;
+
+          // Sinusoidal swimming
+          fish.x += fish.vx;
+          fish.y += Math.sin(swimElapsed / 300 + fish.phase) * 0.5;
+
+          // Wrap around screen edges
+          if (fish.vx > 0 && fish.x > W + 20) fish.x = -fish.sprite.w * pxScale;
+          if (fish.vx < 0 && fish.x < -fish.sprite.w * pxScale - 20) fish.x = W;
+          if (fish.y < 10) fish.y = 10;
+          if (fish.y > H - 30) fish.y = H - 30;
+
+          // Fade out near end
+          let alpha = fish.alpha;
+          if (elapsed >= FADE_START) {
+            alpha *= 1 - (elapsed - FADE_START) / (TOTAL_TIME - FADE_START);
+          }
+
+          drawSprite(fish.sprite, fish.x, fish.y, pxScale, alpha, fish.vx < 0);
+        }
+      } else if (elapsed >= P3_START) {
+        // Phase 3: fish appear but don't swim yet
+        ctx.fillStyle = LCD_TEXT;
+        for (const fish of fishes) {
+          if (!fish.active) continue;
+          drawSprite(fish.sprite, fish.x, fish.y, pxScale, fish.alpha, fish.vx < 0);
+        }
+      }
+
+      // ── Canvas fade out ──
+      if (elapsed >= FADE_START) {
+        const fadeAlpha = (elapsed - FADE_START) / (TOTAL_TIME - FADE_START);
+        ctx.fillStyle = LCD_BG;
+        ctx.globalAlpha = fadeAlpha;
+        ctx.fillRect(0, 0, W, H);
+        ctx.globalAlpha = 1;
+      }
+
+      // ── Skip hint ──
+      ctx.fillStyle = LCD_MUTED;
+      ctx.globalAlpha = 0.4;
+      ctx.font = `${Math.max(9, Math.floor(W / 80))}px Consolas, "Courier New", monospace`;
+      ctx.fillText('CLICK TO SKIP', 8, H - 8);
+      ctx.globalAlpha = 1;
+
+      rafId = requestAnimationFrame(frame);
+    }
+
+    rafId = requestAnimationFrame(frame);
+  }
+
+  // ── Render results to DOM ─────────────────────────────────────────────────
+  function renderResults(findings) {
+    highlightedEl.innerHTML = buildSpeciesListHTML(findings);
+
+    const issues = findings.filter(f => f.type !== 'valid' && f.type !== 'common');
+
+    if (issues.length === 0) {
+      noIssuesEl.hidden  = false;
+      summaryTable.hidden = true;
+      issueBadge.textContent = '';
+    } else {
+      noIssuesEl.hidden   = true;
+      summaryTable.hidden = false;
+      issueBadge.textContent = String(issues.length);
+
+      const seen    = new Set();
+      const deduped = [];
+      for (const f of issues) {
+        if (!seen.has(f.binomial)) {
+          seen.add(f.binomial);
+          deduped.push(f);
+        }
+      }
+
+      const labels = {
+        changed:    'Changed in 8th edition',
+        outdated:   'Outdated / Synonym',
+        misspelled: 'Misspelled',
+        unknown:    'Unknown fish name',
+      };
+
+      summaryTbody.innerHTML = '';
+      for (const f of deduped) {
+        let suggestionCell;
+        if (f.type === 'changed') {
+          suggestionCell = f.commonName
+            ? `Now: <em>${esc(f.commonName)}</em> &mdash; confirm intended species`
+            : 'Confirm this is the intended species';
+        } else if (f.suggestion) {
+          const suggInfo    = db.valid_names[f.suggestion];
+          const suggCommon  = suggInfo ? (suggInfo.common_name_en || '') : '';
+          suggestionCell    = `<em>${esc(f.suggestion)}</em>` +
+            (suggCommon ? ` <span class="common-name">(${esc(suggCommon)})</span>` : '');
+        } else {
+          suggestionCell = '—';
+        }
+
+        const tr = document.createElement('tr');
+        tr.innerHTML =
+          `<td class="name-cell">${esc(f.binomial)}</td>` +
+          `<td><span class="status-${f.type}">${labels[f.type] || f.type}</span></td>` +
+          `<td>${suggestionCell}</td>`;
+        summaryTbody.appendChild(tr);
+      }
+    }
+
+    resultsSection.hidden = false;
+    resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+    checkBtn.disabled    = false;
+    checkBtn.textContent = 'SCAN';
   }
 
   // ── Copy corrected text to clipboard ──────────────────────────────────────
