@@ -235,8 +235,13 @@ firebase use fishfinder-e914a
 
 ## Open issues / future work
 
-- `order` field carries over incorrectly across some page boundaries (cosmetic)
-- Species count (5,086) may be slightly under true total — table PDF may omit
-  some appendix-only species present in the full book
+- `family` (and `order`/`class`) fields carry over incorrectly across page
+  boundaries in `parse_pdf.py`, affecting 360 species (7%) across 54 family
+  pairs (e.g., Gobiesocidae species assigned to Mugilidae). Cosmetic only —
+  these fields are not used by the classification engine, synonyms, or UI.
+  Fix requires re-running the parser with page-boundary-aware family tracking.
+- Species count: Table 1 contains exactly 5,086 species (confirmed from both
+  the table-only and full book PDFs). The Introduction states 5,089 — this is
+  an internal inconsistency in the book, not a parser bug.
 - `og:image` meta tag needs a 1200x630 preview card (graphic design task)
 - Companion paper for *Fisheries* in progress (publication/ folder)
