@@ -88,8 +88,10 @@
   }
 
   // ── Main check logic ───────────────────────────────────────────────────────
+  let isScanning = false;
+
   function runCheck() {
-    if (!db) return;
+    if (!db || isScanning) return;
 
     const text = textarea.value;
     if (!text.trim()) {
@@ -97,6 +99,7 @@
       return;
     }
 
+    isScanning           = true;
     checkBtn.disabled    = true;
     checkBtn.textContent = 'SCANNING…';
 
@@ -448,8 +451,10 @@
     }
 
     resultsSection.hidden = false;
-    resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const scrollBehavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
+    resultsSection.scrollIntoView({ behavior: scrollBehavior, block: 'start' });
 
+    isScanning           = false;
     checkBtn.disabled    = false;
     checkBtn.textContent = 'SCAN';
   }
@@ -489,6 +494,8 @@
             if (!result) continue;
             results.push({ text: cand.text, index: cand.index, type: result.type, suggestion: result.suggestion });
           }
+          const binomialSpans = results.map(r => ({ start: r.index, end: r.index + r.text.length }));
+          results.push(...FishEngine.extractCommonNames(lookups, text, binomialSpans));
           return results;
         })();
 
@@ -536,10 +543,13 @@
   };
 
   // ── File upload handling ────────────────────────────────────────────────────
+  let isLoadingFile = false;
+
   async function handleFileUpload(e) {
     const file = e.target.files[0];
-    if (!file) return;
+    if (!file || isLoadingFile) return;
 
+    isLoadingFile = true;
     const ext = file.name.split('.').pop().toLowerCase();
     fileNameEl.textContent = 'Reading\u2026';
     let text = '';
@@ -570,6 +580,8 @@
     } catch (err) {
       fileNameEl.textContent = '';
       alert('Error reading file: ' + err.message);
+    } finally {
+      isLoadingFile = false;
     }
 
     fileInput.value = '';   // reset so same file can be re-selected
@@ -686,10 +698,28 @@
     return _fbDb;
   }
 
+  // ── Consent helpers ────────────────────────────────────────────────────────
+  function storageGet(key) {
+    try { return localStorage.getItem(key); } catch { return null; }
+  }
+  function storageSet(key, value) {
+    try { localStorage.setItem(key, value); } catch { /* private mode */ }
+  }
+  function storageRemove(key) {
+    try { localStorage.removeItem(key); } catch { /* private mode */ }
+  }
+
+  function hasAnalyticsConsent() {
+    return storageGet('ff_consent') === 'accepted';
+  }
+
   // ── Track visit (once per session) ────────────────────────────────────────
   async function trackVisit() {
     if (!TRACKING_ENABLED) return;
+    if (!hasAnalyticsConsent()) return;
     if (sessionStorage.getItem('ff_tracked')) return;
+    const lastWrite = parseInt(storageGet('ff_last_write') || '0', 10);
+    if (Date.now() - lastWrite < 60000) return;
     try {
       const geo = await fetch('https://ipapi.co/json/').then(r => r.json());
       if (!geo || !geo.latitude) return;
@@ -703,6 +733,7 @@
       });
       await fbDb.ref('fishfinder/stats/sessions').transaction(v => (v || 0) + 1);
       sessionStorage.setItem('ff_tracked', '1');
+      storageSet('ff_last_write', String(Date.now()));
     } catch (e) {
       console.warn('Analytics unavailable:', e.message);
     }
@@ -710,7 +741,7 @@
 
   // ── Track species count on scan ────────────────────────────────────────────
   async function trackSpecies(count) {
-    if (!TRACKING_ENABLED || count === 0) return;
+    if (!TRACKING_ENABLED || !hasAnalyticsConsent() || count === 0) return;
     try {
       const fbDb = await initFirebase();
       await fbDb.ref('fishfinder/stats/species_total').transaction(v => (v || 0) + count);
@@ -747,7 +778,7 @@
       await loadScript(CDN.leafletJs.src, CDN.leafletJs.integrity);
 
       const map = window.L.map('usage-map', {
-        center: [20, 0], zoom: 2,
+        center: [39, -98], zoom: 3,
         zoomControl: true, attributionControl: true,
       });
       window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -773,6 +804,7 @@
     infoModal.hidden = false;
     document.body.style.overflow = 'hidden';
     modalClose.focus();
+    infoModal.removeEventListener('keydown', trapModalFocus);
     infoModal.addEventListener('keydown', trapModalFocus);
   }
   function closeModal() {
@@ -782,9 +814,17 @@
     infoBtn.focus();
   }
   function trapModalFocus(e) {
-    if (e.key === 'Tab') {
+    if (e.key !== 'Tab') return;
+    const focusable = infoModal.querySelectorAll('button, [href], [tabindex]:not([tabindex="-1"])');
+    if (!focusable.length) return;
+    const first = focusable[0];
+    const last  = focusable[focusable.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
       e.preventDefault();
-      modalClose.focus();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
     }
   }
 
@@ -801,8 +841,8 @@
       'Eschmeyer\'s Catalog of Fishes: Genera, Species, References. ' +
       'California Academy of Sciences. Electronic version accessed ' + year + '.',
 
-      '[Author(s)] ([Year]). FISHFINDER: A web-based validator for scientific fish names in ' +
-      'manuscript text. [Journal / Technical Note]. [DOI]. ' +
+      'Zbinden, Z.D. (2026). FISHFINDER: A web-based validator for scientific fish names in ' +
+      'manuscript text. In review. ' +
       'Available at: https://zdzbinden.github.io/FISHFINDER/',
     ].join('\n\n');
 
@@ -816,8 +856,55 @@
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && !infoModal.hidden) closeModal(); });
   citeBtn.addEventListener('click', copyCitations);
 
+  // ── Consent banner ─────────────────────────────────────────────────────────
+  const consentBanner  = document.getElementById('consent-banner');
+  const consentAccept  = document.getElementById('consent-accept');
+  const consentDecline = document.getElementById('consent-decline');
+  const consentLearn   = document.getElementById('consent-learn-more');
+  const privacyLink    = document.getElementById('privacy-link');
+
+  function showConsentBanner() {
+    if (consentBanner) consentBanner.hidden = false;
+  }
+  function hideConsentBanner() {
+    if (consentBanner) consentBanner.hidden = true;
+  }
+
+  if (consentAccept) {
+    consentAccept.addEventListener('click', () => {
+      storageSet('ff_consent', 'accepted');
+      hideConsentBanner();
+      trackVisit().catch(() => {});
+    });
+  }
+  if (consentDecline) {
+    consentDecline.addEventListener('click', () => {
+      storageSet('ff_consent', 'declined');
+      hideConsentBanner();
+    });
+  }
+  if (consentLearn) {
+    consentLearn.addEventListener('click', e => {
+      e.preventDefault();
+      openModal();
+    });
+  }
+  if (privacyLink) {
+    privacyLink.addEventListener('click', e => {
+      e.preventDefault();
+      storageRemove('ff_consent');
+      showConsentBanner();
+    });
+  }
+
   // ── Bootstrap ─────────────────────────────────────────────────────────────
   loadDatabase();
-  trackVisit();
   loadDashboard();
+
+  const consent = storageGet('ff_consent');
+  if (consent === 'accepted') {
+    trackVisit().catch(() => {});
+  } else if (!consent) {
+    showConsentBanner();
+  }
 }());

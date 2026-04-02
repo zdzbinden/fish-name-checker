@@ -111,7 +111,7 @@ node --test test/*.test.js
 
 Uses the Node.js built-in test runner (`node:test` + `node:assert`). Zero npm
 dependencies. Tests load `fish_names.json` directly and exercise the engine
-against the real dataset (45 tests across 4 files):
+against the real dataset (50 tests across 4 files):
 
 | File | Coverage |
 |------|----------|
@@ -124,8 +124,9 @@ against the real dataset (45 tests across 4 files):
 
 ## Security
 
-- **Content Security Policy (CSP):** Enforced via `<meta>` tag with path-scoped
-  CDN entries and Firebase transport support (scripts, WebSocket, iframes).
+- **Content Security Policy (CSP):** Enforced via `<meta>` tag with exact
+  versioned CDN URLs (no directory wildcards) and Firebase transport support.
+  `'unsafe-inline'` in `style-src` is required by Leaflet.
 - **Subresource Integrity (SRI):** All CDN-loaded scripts and stylesheets
   include `sha384` integrity hashes and `crossorigin="anonymous"` attributes.
   The `loadScript()` and `loadStyle()` helpers in `app.js` apply SRI
@@ -134,7 +135,13 @@ against the real dataset (45 tests across 4 files):
   with schema validation for lat/lng bounds, string lengths, timestamp sanity)
   and `fishfinder/stats` (increment-only counters). No extra fields allowed.
   Rules deployed via `firebase deploy --only database` from
-  `database.rules.json` at the project root.
+  `database.rules.json` at the project root. API key restricted by domain
+  in Google Cloud Console.
+- **Privacy & consent:** Analytics (geolocation via ipapi.co, scan counts)
+  are gated on explicit user consent via a localStorage-based banner with
+  accept/decline. All `localStorage` calls are wrapped in try/catch for
+  private browsing mode. Client-side rate limiting prevents write spam.
+  No manuscript text leaves the user's device.
 
 ---
 
@@ -154,11 +161,10 @@ FISHFINDER targets WCAG AA compliance (Lighthouse Accessibility score: 100):
 
 ## GitHub Pages deployment
 
-1. Push the repository to GitHub.
-2. Go to **Settings → Pages**, set Source to the branch and `/ (root)` or the
-   `fishfinder/` folder, depending on your repo layout.
-3. The `.nojekyll` file in this directory prevents GitHub Pages from running
-   Jekyll, which would interfere with the `data/` directory.
+Deployment is automated via GitHub Actions (`.github/workflows/deploy.yml`).
+Pushing to `main` triggers a workflow that uploads the `fishfinder/` directory
+as a Pages artifact and deploys it. The `.nojekyll` file in this directory
+prevents Jekyll processing, which would interfere with the `data/` directory.
 
 ---
 

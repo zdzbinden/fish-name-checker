@@ -60,13 +60,17 @@ FISHFINDER/
 ├── parse_pdf.py              # Step 1: AFS table PDF → fish_names.json
 ├── scrape_eschmeyer.py       # Step 2: synonym enrichment from Eschmeyer's
 ├── database.rules.json       # Firebase Realtime DB security rules
+├── .github/workflows/        # GitHub Actions deploy workflow
 ├── fishfinder/               # Static web app (GitHub Pages)
 │   ├── index.html
 │   ├── css/style.css         # Retro Lowrance fish-finder aesthetic
 │   ├── js/engine.js          # Classification engine (shared browser/Node.js)
 │   ├── js/app.js             # UI, Firebase analytics, event handling
 │   ├── data/fish_names.json  # Generated name database
-│   └── test/                 # Automated test suite (Node.js)
+│   ├── test/                 # Automated test suite (Node.js)
+│   ├── robots.txt            # Crawler directives
+│   └── sitemap.xml           # Sitemap for search engines
+├── meta_analysis/            # Automated literature analysis pipeline
 ├── names_of_fishes/          # Source PDFs (copyrighted, not in repo)
 └── publication/              # Companion manuscript materials
 ```

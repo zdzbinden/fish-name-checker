@@ -11,7 +11,8 @@
   <meta property="og:description" content="Validate scientific fish names in manuscript text against the AFS 8th edition (Page et al., 2023). Checks spelling, detects synonyms, and flags outdated names.">
   <meta property="og:url" content="https://zdzbinden.github.io/FISHFINDER/">
   <meta property="og:type" content="website">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com/ajax/libs/mammoth/ https://cdnjs.cloudflare.com/ajax/libs/xlsx/ https://cdnjs.cloudflare.com/ajax/libs/pdf.js/ https://www.gstatic.com/firebasejs/ https://unpkg.com/leaflet@1.9.4/ https://*.firebaseio.com; style-src 'self' https://unpkg.com/leaflet@1.9.4/ 'unsafe-inline'; connect-src 'self' https://ipapi.co https://*.firebaseio.com wss://*.firebaseio.com https://*.tile.openstreetmap.org; img-src 'self' https://*.tile.openstreetmap.org data:; font-src 'self'; frame-src https://*.firebaseio.com;">
+  <!-- CSP: 'unsafe-inline' in style-src required by Leaflet map + dynamic element sizing -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js https://unpkg.com/leaflet@1.9.4/dist/leaflet.js https://*.firebaseio.com; style-src 'self' https://unpkg.com/leaflet@1.9.4/dist/leaflet.css 'unsafe-inline'; connect-src 'self' https://ipapi.co https://*.firebaseio.com wss://*.firebaseio.com https://*.tile.openstreetmap.org; img-src 'self' https://*.tile.openstreetmap.org data:; font-src 'self'; frame-src https://*.firebaseio.com;">
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -38,7 +39,7 @@
 <div id="info-modal" class="modal-overlay" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
     <button id="modal-close" class="modal-close" aria-label="Close">&times;</button>
-    <div class="modal-header" id="modal-title">FISHFINDER — HOW TO USE</div>
+    <h2 class="modal-header" id="modal-title">FISHFINDER — HOW TO USE</h2>
     <div class="modal-body">
       <p><strong>FISHFINDER</strong> validates scientific fish names in manuscript text against the <em>Common and Scientific Names of Fishes from the United States, Canada, and Mexico</em>, 8th edition (Page et al., 2023), supplemented by synonym data from Eschmeyer's Catalog of Fishes.</p>
 
@@ -67,7 +68,11 @@
       <p>Several well-known names were revised. Notably, Largemouth Bass changed from <em>Micropterus salmoides</em> to <em>Micropterus nigricans</em>; <em>Micropterus salmoides</em> now refers exclusively to Florida Bass. Names flagged <span class="hl changed">CHANGED</span> warrant careful review.</p>
 
       <h3>Privacy</h3>
-      <p>No text you enter is transmitted off your device. Anonymous usage statistics (approximate location from your IP address via ipapi.co, scan counts) are collected to document tool reach and impact.</p>
+      <p>No manuscript text you enter is transmitted off your device &mdash; all processing happens locally in your browser.</p>
+      <p><strong>What is collected (with your consent):</strong> approximate location (city and country derived from your IP address via <a href="https://ipapi.co" target="_blank" rel="noopener">ipapi.co</a>), timestamp of visit, and aggregate scan counts. This data documents tool reach and impact for academic reporting.</p>
+      <p><strong>What is NOT collected:</strong> no manuscript text, no personal information, no login credentials, no cookies for tracking, and no user accounts.</p>
+      <p><strong>Where data is stored:</strong> Firebase Realtime Database (Google infrastructure). Third-party services: ipapi.co (IP geolocation) and Firebase (storage).</p>
+      <p><strong>Your control:</strong> You can change your analytics preference at any time using the <em>Privacy</em> link at the bottom of the tool.</p>
     </div>
   </div>
 </div>
@@ -181,6 +186,7 @@
     <em>Common and Scientific Names of Fishes</em>, 8th&nbsp;ed.
     (Page&nbsp;et&nbsp;al.,&nbsp;2023 &mdash; AFS/ASIH) &middot;
     Synonyms via Eschmeyer's Catalog of Fishes
+    &middot; <a href="#" id="privacy-link" class="privacy-link">Privacy</a>
   </div>
 
 </div><!-- /.device -->
@@ -196,13 +202,12 @@
       Publication 36. American Fisheries Society, Bethesda, Maryland.
     </p>
     <p class="citation-entry">
-      Fricke, R., Eschmeyer, W.N., and Van der Laan, R. (eds.) (2025).
+      Fricke, R., Eschmeyer, W.N., and Van der Laan, R. (eds.) (2026).
       <em>Eschmeyer's Catalog of Fishes: Genera, Species, References.</em>
       California Academy of Sciences. Electronic version accessed 2026.
     </p>
     <p class="citation-entry citation-placeholder">
-      Zbinden, Z.D. (2026). FISHFINDER: A web-based validator for scientific fish names in
-      manuscript text. [Journal / Technical Note]. [DOI].
+      Zbinden, Z.D. (2026). FISHFINDER: Automated Fish Name Validation Reveals Errors in Recent Literature. <em></em>In review.
       Available at: https://zdzbinden.github.io/FISHFINDER/
     </p>
   </div>
@@ -227,10 +232,23 @@
     </div>
   </div>
   <div id="usage-map" class="usage-map"></div>
-  <p class="dashboard-note">Anonymous usage data &mdash; approximate location from your IP address via ipapi.co. No text is transmitted off your device.</p>
+  <p class="dashboard-note">Anonymous usage data collected with your consent. See Privacy in INFO for details.</p>
 </section>
 
 </main>
+<!-- ── Analytics consent banner ─────────────────────────────────────────── -->
+<div id="consent-banner" class="consent-banner" role="alert" aria-live="assertive" hidden>
+  <p class="consent-text">
+    FISHFINDER collects anonymous usage statistics (approximate location from your
+    IP address, scan counts) to document tool reach. No manuscript text leaves your device.
+    <a href="#" id="consent-learn-more">Learn&nbsp;more</a>
+  </p>
+  <div class="consent-buttons">
+    <button id="consent-accept" class="consent-btn consent-accept">Accept</button>
+    <button id="consent-decline" class="consent-btn consent-decline">Decline</button>
+  </div>
+</div>
+
 <script src="js/engine.js"></script>
 <script src="js/app.js"></script>
 </body>

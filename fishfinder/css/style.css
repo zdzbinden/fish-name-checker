@@ -847,6 +847,76 @@ td.name-cell { font-style: italic; }
 }
 
 /* ══════════════════════════════════════════════════════════════════════════════
+   CONSENT BANNER
+   ══════════════════════════════════════════════════════════════════════════════ */
+.consent-banner {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 9999;
+  background: #1a1816;
+  border-top: 2px solid #3e3c38;
+  padding: 1rem 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.2rem;
+  flex-wrap: wrap;
+}
+.consent-banner[hidden] {
+  display: none;
+}
+.consent-text {
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 0.75rem;
+  color: #c4c8c0;
+  line-height: 1.5;
+  max-width: 600px;
+  margin: 0;
+}
+.consent-text a {
+  color: #a0c8e8;
+  text-decoration: underline;
+}
+.consent-buttons {
+  display: flex;
+  gap: 0.6rem;
+  flex-shrink: 0;
+}
+.consent-btn {
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 0.75rem;
+  font-weight: bold;
+  padding: 0.4rem 1rem;
+  border: 1px solid #3e3c38;
+  border-radius: 4px;
+  cursor: pointer;
+  letter-spacing: 0.03em;
+}
+.consent-accept {
+  background: #2a3a20;
+  color: #b4c8a0;
+}
+.consent-accept:hover { background: #3a4a2a; }
+.consent-decline {
+  background: #2e2c28;
+  color: #8a8e86;
+}
+.consent-decline:hover { background: #3e3c38; }
+.consent-btn:focus-visible {
+  outline: 2px solid #a0c8e8;
+  outline-offset: 2px;
+}
+
+.privacy-link {
+  color: #8c9096;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.privacy-link:hover { color: #a0c8e8; }
+
+/* ══════════════════════════════════════════════════════════════════════════════
    RESPONSIVE
    ══════════════════════════════════════════════════════════════════════════════ */
 @media (max-width: 700px) {
@@ -857,4 +927,15 @@ td.name-cell { font-style: italic; }
   .brand { font-size: 1.1rem; }
   .stats-row { flex-direction: column; }
   .citations-section, .dashboard { padding: 1rem; }
+  .device-btn,
+  .consent-btn,
+  .cite-copy-btn { min-height: 44px; }
+  .modal-close { min-width: 44px; min-height: 44px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loading-spinner { animation: none; }
+  textarea,
+  .device-btn,
+  .cite-copy-btn { transition: none; }
 }
