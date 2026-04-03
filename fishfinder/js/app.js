@@ -790,7 +790,7 @@
       for (const v of visits) {
         if (v.lat && v.lng) {
           window.L.circleMarker([v.lat, v.lng], {
-            radius: 5, fillColor: '#a8c080',
+            radius: 2, fillColor: '#a8c080',
             color: '#4a6030', weight: 1, fillOpacity: 0.75,
           }).bindPopup(`${v.city ? v.city + ', ' : ''}${v.country}`).addTo(map);
         }
