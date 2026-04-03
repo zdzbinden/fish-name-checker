@@ -145,45 +145,39 @@
   }
 
   // ── Post-scan animation ──────────────────────────────────────────────────
+  // Outline fish icons — forked tail, hollow body (classic depth finder style)
   const FISH_SPRITES = [
-    // Side-view fish (16x8)
-    { w: 16, h: 8, data: [
-      [0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0],
-      [0,0,0,0,0,1,1,1,1,1,0,0,0,0,0,0],
-      [1,1,0,0,1,1,1,1,1,1,1,1,1,0,0,0],
-      [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0],
-      [1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,0],
-      [1,1,0,0,1,1,1,1,1,1,1,1,1,0,0,0],
-      [0,0,0,0,0,1,1,1,1,1,0,0,0,0,0,0],
-      [0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0],
+    // Large outline fish (14x7) — facing right, V-tail on left
+    { w: 14, h: 7, data: [
+      [0,0,0,0,0,0,0,1,1,1,0,0,0,0],
+      [1,0,0,0,0,1,1,0,0,0,1,1,0,0],
+      [0,1,0,0,1,0,0,0,0,0,0,0,1,0],
+      [0,0,1,1,0,0,0,0,0,0,0,0,0,1],
+      [0,1,0,0,1,0,0,0,0,0,0,0,1,0],
+      [1,0,0,0,0,1,1,0,0,0,1,1,0,0],
+      [0,0,0,0,0,0,0,1,1,1,0,0,0,0],
     ]},
-    // Small minnow (10x5)
-    { w: 10, h: 5, data: [
-      [0,0,0,0,1,1,1,0,0,0],
-      [1,0,0,1,1,1,1,1,1,0],
-      [1,1,1,1,1,0,1,1,1,1],
-      [1,0,0,1,1,1,1,1,1,0],
-      [0,0,0,0,1,1,1,0,0,0],
+    // Medium outline fish (11x5) — facing right
+    { w: 11, h: 5, data: [
+      [0,0,0,0,0,1,1,1,0,0,0],
+      [1,0,0,1,1,0,0,0,1,1,0],
+      [0,1,1,0,0,0,0,0,0,0,1],
+      [1,0,0,1,1,0,0,0,1,1,0],
+      [0,0,0,0,0,1,1,1,0,0,0],
     ]},
-    // Bass-like fish (20x10)
-    { w: 20, h: 10, data: [
-      [0,0,0,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,0,0],
-      [0,0,0,0,0,0,0,1,1,1,1,1,1,0,0,0,0,0,0,0],
-      [0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,0,0,0,0,0],
-      [1,1,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0],
-      [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0],
-      [1,1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1],
-      [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0],
-      [1,1,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0],
-      [0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,0,0,0,0,0],
-      [0,0,0,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,0,0],
+    // Small outline fish (9x5) — facing right
+    { w: 9, h: 5, data: [
+      [0,0,0,0,1,1,0,0,0],
+      [1,0,1,1,0,0,1,0,0],
+      [0,1,0,0,0,0,0,1,0],
+      [1,0,1,1,0,0,1,0,0],
+      [0,0,0,0,1,1,0,0,0],
     ]},
-    // Tiny fish (8x4)
-    { w: 8, h: 4, data: [
-      [0,0,0,1,1,0,0,0],
-      [1,0,1,1,0,1,1,0],
-      [1,1,1,1,1,1,1,1],
-      [0,0,0,1,1,0,0,0],
+    // Tiny outline fish (7x3) — facing right
+    { w: 7, h: 3, data: [
+      [1,0,0,1,1,0,0],
+      [0,1,1,0,0,1,0],
+      [1,0,0,1,1,0,0],
     ]},
   ];
 
@@ -227,12 +221,12 @@
     const P4_START   = isMobile ? 1300 : 2200;   // swim start
     const FADE_START = TOTAL_TIME - 400;          // canvas fade out
 
-    // Sonar config
-    const sonarCenterX = W / 2;
-    const sonarCenterY = H * 0.35;
-    const maxRadius    = Math.max(W, H) * 0.8;
-    const pulseCount   = isMobile ? 3 : 4;
-    const pulseInterval = SONAR_END / (pulseCount + 1);
+    // Sonar beam config — cone emits from top-center, sweeps downward
+    const beamOriginX = W / 2;
+    const beamOriginY = 0;
+    const beamSpread  = W * 0.4;        // half-width of cone at bottom
+    const pingCount   = isMobile ? 3 : 4;
+    const pingInterval = SONAR_END / (pingCount + 1);
 
     // Build fish objects (max 15)
     const fishCount = Math.min(findings.length, 15);
@@ -295,21 +289,35 @@
       ctx.fillStyle = LCD_BG;
       ctx.fillRect(0, 0, W, H);
 
-      // ── Phase 1: Sonar pulses ──
+      // ── Phase 1: Sonar beam pings downward ──
       if (elapsed < SONAR_END) {
-        for (let i = 0; i < pulseCount; i++) {
-          const pulseStart = i * pulseInterval;
-          const pulseAge = elapsed - pulseStart;
-          if (pulseAge < 0) continue;
+        // Draw static sonar cone outline (faint)
+        ctx.beginPath();
+        ctx.moveTo(beamOriginX, beamOriginY);
+        ctx.lineTo(beamOriginX - beamSpread, H);
+        ctx.lineTo(beamOriginX + beamSpread, H);
+        ctx.closePath();
+        ctx.strokeStyle = LCD_TEXT;
+        ctx.lineWidth = 1;
+        ctx.globalAlpha = 0.15;
+        ctx.stroke();
+        ctx.globalAlpha = 1;
 
-          const progress = Math.min(pulseAge / (SONAR_END - pulseStart), 1);
-          const radius = progress * maxRadius;
-          const alpha = (1 - progress) * 0.5;
+        // Ping lines sweep top to bottom inside the cone
+        for (let i = 0; i < pingCount; i++) {
+          const pingStart = i * pingInterval;
+          const pingAge = elapsed - pingStart;
+          if (pingAge < 0) continue;
+
+          const progress = Math.min(pingAge / (SONAR_END - pingStart), 1);
+          const y = progress * H;
+          const spread = (y / H) * beamSpread;
+          const alpha = (1 - progress) * 0.6;
 
           if (alpha <= 0) continue;
 
           ctx.beginPath();
-          ctx.arc(sonarCenterX, sonarCenterY, radius, 0, Math.PI * 2);
+          ctx.arc(beamOriginX, beamOriginY, y, Math.atan2(H, beamSpread), Math.PI - Math.atan2(H, beamSpread));
           ctx.strokeStyle = LCD_TEXT;
           ctx.lineWidth = Math.max(1, 3 - progress * 2);
           ctx.globalAlpha = alpha;
@@ -323,52 +331,22 @@
         ctx.globalAlpha = 0.6;
         ctx.font = `bold ${Math.max(11, Math.floor(W / 50))}px Consolas, "Courier New", monospace`;
         ctx.textAlign = 'center';
-        ctx.fillText('SCANNING' + dots, W / 2, H * 0.7);
+        ctx.fillText('SCANNING' + dots, W / 2, H * 0.85);
         ctx.textAlign = 'start';
         ctx.globalAlpha = 1;
       }
 
-      // ── Phase 3: Fish appear ──
+      // ── Phase 3+: Fish appear (static) ──
       if (elapsed >= P3_START) {
         const transformProgress = Math.min((elapsed - P3_START) / (P3_END - P3_START), 1);
-        for (const fish of fishes) {
-          fish.alpha = transformProgress;
-          fish.active = true;
-        }
-      }
-
-      // ── Phase 4: Fish swim ──
-      if (elapsed >= P4_START) {
-        const swimElapsed = elapsed - P4_START;
         ctx.fillStyle = LCD_TEXT;
 
         for (const fish of fishes) {
-          if (!fish.active) continue;
-
-          // Sinusoidal swimming
-          fish.x += fish.vx;
-          fish.y += Math.sin(swimElapsed / 300 + fish.phase) * 0.5;
-
-          // Wrap around screen edges
-          if (fish.vx > 0 && fish.x > W + 20) fish.x = -fish.sprite.w * pxScale;
-          if (fish.vx < 0 && fish.x < -fish.sprite.w * pxScale - 20) fish.x = W;
-          if (fish.y < 10) fish.y = 10;
-          if (fish.y > H - 30) fish.y = H - 30;
-
-          // Fade out near end
-          let alpha = fish.alpha;
+          let alpha = transformProgress;
           if (elapsed >= FADE_START) {
             alpha *= 1 - (elapsed - FADE_START) / (TOTAL_TIME - FADE_START);
           }
-
           drawSprite(fish.sprite, fish.x, fish.y, pxScale, alpha, fish.vx < 0);
-        }
-      } else if (elapsed >= P3_START) {
-        // Phase 3: fish appear but don't swim yet
-        ctx.fillStyle = LCD_TEXT;
-        for (const fish of fishes) {
-          if (!fish.active) continue;
-          drawSprite(fish.sprite, fish.x, fish.y, pxScale, fish.alpha, fish.vx < 0);
         }
       }
 
