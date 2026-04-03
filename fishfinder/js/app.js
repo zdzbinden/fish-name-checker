@@ -778,7 +778,7 @@
       await loadScript(CDN.leafletJs.src, CDN.leafletJs.integrity);
 
       const map = window.L.map('usage-map', {
-        center: [39, -98], zoom: 3,
+        center: [45, -98], zoom: 2,
         zoomControl: true, attributionControl: true,
       });
       window.L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
