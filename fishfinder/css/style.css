@@ -182,8 +182,8 @@ main {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 400px;
-  height: 400px;
+  width: min(400px, 70%);
+  height: auto;
   object-fit: contain;
   opacity: 0.12;
   pointer-events: none;
