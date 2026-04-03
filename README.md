@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="logo.v.0.1.png" alt="FISHFINDER logo" width="300"/>
+  <img src="fishfinder/data/logo.png" alt="FISHFINDER logo" width="300"/>
 </p>
 
 <h1 align="center">FISHFINDER</h1>

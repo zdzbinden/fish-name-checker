@@ -1,11 +1,11 @@
 # Source PDF — copyrighted, not for distribution
 names_of_fishes/
 
-# Original project prompt (personal)
-Prompt.md
-
 # Eschmeyer scraper cache (large, local only)
 eschmeyer_cache.json
+
+# Dev-only scripts
+debug_pdf.py
 
 # Python
 __pycache__/
@@ -19,9 +19,8 @@ __pycache__/
 # Publication drafts (local only)
 publication/
 
-# Meta-analysis cache — large downloaded/extracted files
-meta_analysis/cache/pdfs/
-meta_analysis/cache/texts/
+# Meta-analysis cache (regenerable pipeline outputs)
+meta_analysis/cache/
 
 # Node
 node_modules/
@@ -31,6 +30,9 @@ node_modules/
 
 # Claude Code
 .claude/
+
+# Adobe Illustrator source files
+*.ai
 
 # OS
 .DS_Store

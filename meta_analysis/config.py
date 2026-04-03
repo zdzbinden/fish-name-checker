@@ -1,5 +1,6 @@
 """Shared configuration for the FISHFINDER meta-analysis pipeline."""
 
+import os
 from pathlib import Path
 
 # ── Paths ────────────────────────────────────────────────────────────────────
@@ -20,11 +21,11 @@ FISH_NAMES_JSON = HERE.parent / 'fishfinder' / 'data' / 'fish_names.json'
 # OpenAlex: free, no auth required. Providing email gets you into the
 # "polite pool" with faster rate limits.
 OPENALEX_API = 'https://api.openalex.org/works'
-OPENALEX_EMAIL = 'zach.zbinden@umces.edu'
+OPENALEX_EMAIL = os.environ.get('OPENALEX_EMAIL', '')
 
 # Unpaywall: free, just needs email for identification.
 UNPAYWALL_API = 'https://api.unpaywall.org/v2'
-UNPAYWALL_EMAIL = OPENALEX_EMAIL  # Same email for both
+UNPAYWALL_EMAIL = OPENALEX_EMAIL
 
 # ── Rate Limiting ────────────────────────────────────────────────────────────
 OPENALEX_DELAY = 0.2    # 200ms between requests (limit is 10 req/s)
