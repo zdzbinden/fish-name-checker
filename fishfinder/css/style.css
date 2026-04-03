@@ -111,16 +111,17 @@ main {
 .device-header {
   display: flex;
   justify-content: space-between;
-  align-items: baseline;
-  padding: 0.25rem 0.5rem 0.75rem;
+  align-items: center;
+  padding: 0.3rem 0.4rem 0.5rem;
 }
 
 .brand {
   font-family: "Arial Black", Impact, "Helvetica Neue", sans-serif;
   font-weight: 900;
-  font-size: 1.3rem;
+  font-size: 2.2rem;
   color: #e8eaed;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.04em;
+  line-height: 1;
   text-shadow: 0 1px 3px rgba(0,0,0,0.4);
 }
 
@@ -924,7 +925,7 @@ td.name-cell { font-style: italic; }
   .device { padding: 0.75rem 1rem 0.75rem; border-radius: 10px; }
   .screen { padding: 0.85rem; }
   .results-grid { grid-template-columns: 1fr; }
-  .brand { font-size: 1.1rem; }
+  .brand { font-size: 1.8rem; }
   .stats-row { flex-direction: column; }
   .citations-section, .dashboard { padding: 1rem; }
   .device-btn,
