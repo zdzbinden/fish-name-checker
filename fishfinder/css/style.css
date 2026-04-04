@@ -892,10 +892,12 @@ select.report-input {
 .affiliation-link {
   display: inline-flex;
   align-items: center;
-  transition: opacity 0.2s ease;
+  cursor: pointer;
+  transition: transform 0.2s ease, opacity 0.2s ease;
 }
 .affiliation-link:hover {
-  opacity: 0.8;
+  opacity: 0.85;
+  transform: scale(1.04);
 }
 .affiliation-link:first-child {
   background: #fff;
