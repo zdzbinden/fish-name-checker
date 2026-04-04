@@ -191,7 +191,7 @@ main {
   width: min(400px, 70%);
   height: auto;
   object-fit: contain;
-  opacity: 0.12;
+  opacity: 0.04;
   pointer-events: none;
   z-index: 3;
 }
