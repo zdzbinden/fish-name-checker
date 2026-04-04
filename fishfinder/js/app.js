@@ -840,14 +840,16 @@
 
     try {
       const fbDb = await initFirebase();
-      await fbDb.ref('fishfinder/issues').push({
+      const emailVal = document.getElementById('report-email').value.trim();
+      const payload = {
         type:  document.getElementById('report-type').value,
         title: document.getElementById('report-title').value.trim(),
         body:  document.getElementById('report-body').value.trim(),
-        email: document.getElementById('report-email').value.trim() || null,
         ts:    Date.now(),
         ua:    navigator.userAgent,
-      });
+      };
+      if (emailVal) payload.email = emailVal;
+      await fbDb.ref('fishfinder/issues').push(payload);
 
       reportStatus.textContent = 'Issue submitted — thank you!';
       reportStatus.className = 'report-status success';
