@@ -897,9 +897,14 @@ select.report-input {
 .affiliation-link:hover {
   opacity: 0.8;
 }
+.affiliation-link:first-child {
+  background: #fff;
+  padding: 0.6rem 0.8rem;
+  border-radius: 16px;
+}
 
 .affiliation-logo {
-  height: 200px;
+  height: 250px;
   width: auto;
   transition: filter 0.2s ease;
 }
@@ -1097,7 +1102,7 @@ select.report-input {
   .stats-row { flex-direction: column; }
   .citations-section, .affiliations-section, .dashboard { padding: 1rem; }
   .affiliations-body { gap: 1.5rem; }
-  .affiliation-logo { height: 150px; }
+  .affiliation-logo { height: 190px; }
   .device-btn,
   .consent-btn,
   .cite-copy-btn { min-height: 44px; }
