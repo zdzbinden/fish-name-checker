@@ -560,6 +560,7 @@ a.device-btn {
   text-decoration: none;
   text-align: center;
 }
+a.device-btn:hover { color: #c0c8d0; }
 
 .device-btn {
   background: linear-gradient(180deg, #50545a 0%, #42464c 50%, #36393e 100%);
@@ -680,6 +681,82 @@ a.device-btn {
   text-underline-offset: 2px;
 }
 .info-panel a:hover { color: var(--lcd-text); }
+
+/* ── Report form (on-screen) ──────────────────────────────────────────────── */
+.report-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.report-label {
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--lcd-muted);
+  margin-top: 0.3rem;
+}
+
+.report-input {
+  display: block;
+  width: 100%;
+  padding: 0.5rem 0.6rem;
+  background: var(--lcd-darker);
+  border: 1px solid #2d3b1e;
+  border-radius: 3px;
+  color: var(--lcd-text);
+  font-family: "IBM Plex Mono", Consolas, monospace;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  box-sizing: border-box;
+}
+.report-input:focus {
+  outline: none;
+  border-color: var(--lcd-muted);
+}
+.report-input::placeholder {
+  color: var(--lcd-muted);
+  opacity: 0.5;
+}
+
+select.report-input {
+  appearance: none;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%231c2c0c' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.6rem center;
+  padding-right: 2rem;
+}
+
+.report-textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.report-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.report-status {
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 0.7rem;
+  text-align: center;
+  padding: 0.4rem;
+  border-radius: 3px;
+  margin-top: 0.25rem;
+}
+.report-status.success {
+  color: #9ab882;
+  background: rgba(154, 184, 130, 0.1);
+}
+.report-status.error {
+  color: #c88080;
+  background: rgba(200, 128, 128, 0.1);
+}
 
 .modal-body {
   font-size: 0.85rem;

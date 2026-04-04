@@ -95,6 +95,36 @@
         </div>
       </div>
 
+      <!-- Report panel (shown on screen when REPORT is pressed) -->
+      <div id="report-panel" class="info-panel" hidden>
+        <h2 class="info-panel-header">REPORT AN ISSUE</h2>
+        <form id="report-form" class="report-form">
+          <label for="report-type" class="report-label">TYPE</label>
+          <select id="report-type" class="report-input" required>
+            <option value="" disabled selected>Select&hellip;</option>
+            <option value="bug">Bug Report</option>
+            <option value="feature">Feature Request</option>
+            <option value="data">Data Error</option>
+            <option value="other">Other</option>
+          </select>
+
+          <label for="report-title" class="report-label">TITLE</label>
+          <input id="report-title" class="report-input" type="text" maxlength="200" placeholder="Brief summary&hellip;" required>
+
+          <label for="report-body" class="report-label">DESCRIPTION</label>
+          <textarea id="report-body" class="report-input report-textarea" rows="6" maxlength="2000" placeholder="Describe the issue&hellip;" required></textarea>
+
+          <label for="report-email" class="report-label">EMAIL (OPTIONAL)</label>
+          <input id="report-email" class="report-input" type="email" maxlength="200" placeholder="For follow-up if needed">
+
+          <div class="report-actions">
+            <button type="submit" class="device-btn primary" id="report-submit-btn">SUBMIT</button>
+            <a href="https://github.com/zdzbinden/FISHFINDER/issues" target="_blank" rel="noopener" class="device-btn">GITHUB ISSUES</a>
+          </div>
+          <div id="report-status" class="report-status" hidden></div>
+        </form>
+      </div>
+
       <div id="loading" class="loading">
         <div class="loading-spinner"></div>
         <span>Loading species database&hellip;</span>
@@ -183,7 +213,7 @@
     <button id="clear-btn" class="device-btn">CLEAR</button>
     <button id="copy-btn" class="device-btn">COPY</button>
     <button id="info-btn" class="device-btn">INFO</button>
-    <a href="https://github.com/zdzbinden/FISHFINDER/issues" target="_blank" rel="noopener" class="device-btn report-btn">REPORT</a>
+    <button id="report-btn" class="device-btn">REPORT</button>
   </div>
 
   <!-- Footer / brief credit -->

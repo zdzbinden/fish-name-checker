@@ -15,6 +15,20 @@
           "$other":  { ".validate": false }
         }
       },
+      "issues": {
+        ".read": true,
+        "$pushId": {
+          ".write": true,
+          ".validate": "newData.hasChildren(['type','title','body','ts'])",
+          "type":    { ".validate": "newData.isString() && newData.val().length <= 50" },
+          "title":   { ".validate": "newData.isString() && newData.val().length <= 200" },
+          "body":    { ".validate": "newData.isString() && newData.val().length <= 2000" },
+          "email":   { ".validate": "newData.isString() && newData.val().length <= 200" },
+          "ts":      { ".validate": "newData.isNumber() && newData.val() <= now" },
+          "ua":      { ".validate": "newData.isString() && newData.val().length <= 500" },
+          "$other":  { ".validate": false }
+        }
+      },
       "stats": {
         ".read": true,
         "sessions":      { ".write": true, ".validate": "newData.isNumber() && ((!data.exists() && newData.val() === 1) || (data.exists() && newData.val() === data.val() + 1))" },

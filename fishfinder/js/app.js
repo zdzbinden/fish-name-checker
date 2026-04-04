@@ -21,6 +21,10 @@
   const infoBtn        = document.getElementById('info-btn');
   const citeBtn        = document.getElementById('cite-btn');
   const infoPanel      = document.getElementById('info-panel');
+  const reportBtn      = document.getElementById('report-btn');
+  const reportPanel    = document.getElementById('report-panel');
+  const reportForm     = document.getElementById('report-form');
+  const reportStatus   = document.getElementById('report-status');
   const screenEl       = document.querySelector('.screen');
   const fileInput      = document.getElementById('file-input');
   const fileNameEl     = document.getElementById('file-name');
@@ -658,7 +662,7 @@
     textarea.value          = '';
     resultsSection.hidden   = true;
     fileNameEl.textContent  = '';
-    if (!infoPanel.hidden) toggleInfo();
+    closeAllPanels();
   });
 
   copyBtn.addEventListener('click', copyText);
@@ -800,13 +804,63 @@
     }
   }
 
-  // ── Info panel (on-screen toggle) ───────────────────────────────────────────
-  function toggleInfo() {
-    const showing = !infoPanel.hidden;
-    infoPanel.hidden = showing;
-    screenEl.style.overflow = showing ? '' : 'auto';
-    if (!showing) infoPanel.scrollTop = 0;
+  // ── Screen panel helpers ─────────────────────────────────────────────────────
+  function closeAllPanels() {
+    infoPanel.hidden = true;
+    reportPanel.hidden = true;
+    screenEl.style.overflow = '';
   }
+
+  function toggleInfo() {
+    const wasHidden = infoPanel.hidden;
+    closeAllPanels();
+    if (wasHidden) {
+      infoPanel.hidden = false;
+      infoPanel.scrollTop = 0;
+      screenEl.style.overflow = 'auto';
+    }
+  }
+
+  function toggleReport() {
+    const wasHidden = reportPanel.hidden;
+    closeAllPanels();
+    if (wasHidden) {
+      reportPanel.hidden = false;
+      reportPanel.scrollTop = 0;
+      screenEl.style.overflow = 'auto';
+    }
+  }
+
+  // ── Report submission ─────────────────────────────────────────────────────
+  reportForm.addEventListener('submit', async e => {
+    e.preventDefault();
+    const submitBtn = document.getElementById('report-submit-btn');
+    submitBtn.disabled = true;
+    reportStatus.hidden = true;
+
+    try {
+      const fbDb = await initFirebase();
+      await fbDb.ref('fishfinder/issues').push({
+        type:  document.getElementById('report-type').value,
+        title: document.getElementById('report-title').value.trim(),
+        body:  document.getElementById('report-body').value.trim(),
+        email: document.getElementById('report-email').value.trim() || null,
+        ts:    Date.now(),
+        ua:    navigator.userAgent,
+      });
+
+      reportStatus.textContent = 'Issue submitted — thank you!';
+      reportStatus.className = 'report-status success';
+      reportStatus.hidden = false;
+      reportForm.reset();
+    } catch (err) {
+      reportStatus.textContent = 'Submission failed — try GitHub Issues instead.';
+      reportStatus.className = 'report-status error';
+      reportStatus.hidden = false;
+    } finally {
+      submitBtn.disabled = false;
+    }
+  });
 
   // ── Copy citations ─────────────────────────────────────────────────────────
   function copyCitations() {
@@ -831,7 +885,8 @@
 
   // ── Additional event listeners ─────────────────────────────────────────────
   infoBtn.addEventListener('click', toggleInfo);
-  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !infoPanel.hidden) toggleInfo(); });
+  reportBtn.addEventListener('click', toggleReport);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAllPanels(); });
   citeBtn.addEventListener('click', copyCitations);
 
   // ── Consent banner ─────────────────────────────────────────────────────────
