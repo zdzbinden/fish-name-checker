@@ -856,6 +856,7 @@
       reportStatus.hidden = false;
       reportForm.reset();
     } catch (err) {
+      console.error('Issue submission failed:', err);
       reportStatus.textContent = 'Submission failed — try GitHub Issues instead.';
       reportStatus.className = 'report-status error';
       reportStatus.hidden = false;
