@@ -20,8 +20,8 @@
   const loadBtn        = document.getElementById('load-btn');
   const infoBtn        = document.getElementById('info-btn');
   const citeBtn        = document.getElementById('cite-btn');
-  const infoModal      = document.getElementById('info-modal');
-  const modalClose     = document.getElementById('modal-close');
+  const infoPanel      = document.getElementById('info-panel');
+  const screenEl       = document.querySelector('.screen');
   const fileInput      = document.getElementById('file-input');
   const fileNameEl     = document.getElementById('file-name');
   const textarea       = document.getElementById('manuscript-text');
@@ -525,7 +525,13 @@
 
   async function handleFileUpload(e) {
     const file = e.target.files[0];
-    if (!file || isLoadingFile) return;
+    if (!file) return;
+    await processFile(file);
+    fileInput.value = '';   // reset so same file can be re-selected
+  }
+
+  async function processFile(file) {
+    if (isLoadingFile) return;
 
     isLoadingFile = true;
     const ext = file.name.split('.').pop().toLowerCase();
@@ -561,8 +567,6 @@
     } finally {
       isLoadingFile = false;
     }
-
-    fileInput.value = '';   // reset so same file can be re-selected
   }
 
   async function extractDocx(file) {
@@ -629,6 +633,22 @@
     return html;
   }
 
+  // ── Drag-and-drop on screen ────────────────────────────────────────────────
+  screenEl.addEventListener('dragover', e => {
+    e.preventDefault();
+    screenEl.classList.add('drag-over');
+  });
+  screenEl.addEventListener('dragleave', e => {
+    e.preventDefault();
+    screenEl.classList.remove('drag-over');
+  });
+  screenEl.addEventListener('drop', e => {
+    e.preventDefault();
+    screenEl.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file) processFile(file);
+  });
+
   // ── Event listeners ────────────────────────────────────────────────────────
   loadBtn.addEventListener('click', () => fileInput.click());
   fileInput.addEventListener('change', handleFileUpload);
@@ -638,6 +658,7 @@
     textarea.value          = '';
     resultsSection.hidden   = true;
     fileNameEl.textContent  = '';
+    if (!infoPanel.hidden) toggleInfo();
   });
 
   copyBtn.addEventListener('click', copyText);
@@ -779,33 +800,12 @@
     }
   }
 
-  // ── Info modal ─────────────────────────────────────────────────────────────
-  function openModal() {
-    infoModal.hidden = false;
-    document.body.style.overflow = 'hidden';
-    modalClose.focus();
-    infoModal.removeEventListener('keydown', trapModalFocus);
-    infoModal.addEventListener('keydown', trapModalFocus);
-  }
-  function closeModal() {
-    infoModal.hidden = true;
-    document.body.style.overflow = '';
-    infoModal.removeEventListener('keydown', trapModalFocus);
-    infoBtn.focus();
-  }
-  function trapModalFocus(e) {
-    if (e.key !== 'Tab') return;
-    const focusable = infoModal.querySelectorAll('button, [href], [tabindex]:not([tabindex="-1"])');
-    if (!focusable.length) return;
-    const first = focusable[0];
-    const last  = focusable[focusable.length - 1];
-    if (e.shiftKey && document.activeElement === first) {
-      e.preventDefault();
-      last.focus();
-    } else if (!e.shiftKey && document.activeElement === last) {
-      e.preventDefault();
-      first.focus();
-    }
+  // ── Info panel (on-screen toggle) ───────────────────────────────────────────
+  function toggleInfo() {
+    const showing = !infoPanel.hidden;
+    infoPanel.hidden = showing;
+    screenEl.style.overflow = showing ? '' : 'auto';
+    if (!showing) infoPanel.scrollTop = 0;
   }
 
   // ── Copy citations ─────────────────────────────────────────────────────────
@@ -830,10 +830,8 @@
   }
 
   // ── Additional event listeners ─────────────────────────────────────────────
-  infoBtn.addEventListener('click', openModal);
-  modalClose.addEventListener('click', closeModal);
-  infoModal.addEventListener('click', e => { if (e.target === infoModal) closeModal(); });
-  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !infoModal.hidden) closeModal(); });
+  infoBtn.addEventListener('click', toggleInfo);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !infoPanel.hidden) toggleInfo(); });
   citeBtn.addEventListener('click', copyCitations);
 
   // ── Consent banner ─────────────────────────────────────────────────────────
@@ -866,7 +864,7 @@
   if (consentLearn) {
     consentLearn.addEventListener('click', e => {
       e.preventDefault();
-      openModal();
+      toggleInfo();
     });
   }
   if (privacyLink) {

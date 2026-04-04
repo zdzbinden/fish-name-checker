@@ -4,14 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>FISHFINDER — Scientific Name Validator</title>
-  <meta name="description" content="Validate scientific fish names in manuscript text against the AFS 8th edition (Page et al., 2023). Checks spelling, detects synonyms, and flags outdated names.">
-  <meta name="keywords" content="fish names, scientific name validator, AFS 8th edition, ichthyology, taxonomy, nomenclature, manuscript proofreading">
+  <meta name="description" content="Validate scientific fish names in manuscript text against Names of Fishes, 8th edition (Page et al., 2023). Checks spelling, detects synonyms, and flags outdated names.">
+  <meta name="keywords" content="fish names, scientific name validator, Names of Fishes 8th edition, ichthyology, taxonomy, nomenclature, manuscript proofreading">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
   <link rel="canonical" href="https://zdzbinden.github.io/FISHFINDER/">
   <meta property="og:title" content="FISHFINDER — Scientific Name Validator">
-  <meta property="og:description" content="Validate scientific fish names in manuscript text against the AFS 8th edition (Page et al., 2023). Checks spelling, detects synonyms, and flags outdated names.">
+  <meta property="og:description" content="Validate scientific fish names in manuscript text against Names of Fishes, 8th edition (Page et al., 2023). Checks spelling, detects synonyms, and flags outdated names.">
   <meta property="og:url" content="https://zdzbinden.github.io/FISHFINDER/">
   <meta property="og:type" content="website">
   <!-- CSP: 'unsafe-inline' in style-src required by Leaflet map + dynamic element sizing -->
@@ -21,7 +21,7 @@
     "@context": "https://schema.org",
     "@type": "WebApplication",
     "name": "FISHFINDER",
-    "description": "Validates scientific fish names in manuscript text against the AFS 8th edition (Page et al., 2023). Checks spelling, detects synonyms, and flags outdated names.",
+    "description": "Validates scientific fish names in manuscript text against Names of Fishes, 8th edition (Page et al., 2023). Checks spelling, detects synonyms, and flags outdated names.",
     "url": "https://zdzbinden.github.io/FISHFINDER/",
     "applicationCategory": "ScienceApplication",
     "operatingSystem": "Any (web browser)",
@@ -38,47 +38,6 @@
 <body>
 <a href="#manuscript-text" class="skip-link">Skip to content</a>
 
-<!-- ── Info modal ─────────────────────────────────────────────────────────── -->
-<div id="info-modal" class="modal-overlay" hidden>
-  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
-    <button id="modal-close" class="modal-close" aria-label="Close">&times;</button>
-    <h2 class="modal-header" id="modal-title">FISHFINDER — HOW TO USE</h2>
-    <div class="modal-body">
-      <p><strong>FISHFINDER</strong> validates scientific fish names in manuscript text against the <em>Common and Scientific Names of Fishes from the United States, Canada, and Mexico</em>, 8th edition (Page et al., 2023), supplemented by synonym data from Eschmeyer's Catalog of Fishes.</p>
-
-      <h3>Getting started</h3>
-      <ol>
-        <li>Paste your manuscript text into the <strong>TEXT INPUT</strong> area, or press <strong>LOAD</strong> to upload a .txt, .docx, .xlsx, or .pdf file.</li>
-        <li>Press <strong>SCAN</strong> (or Ctrl+Enter) to analyze the text.</li>
-        <li>Review detected species names in the <strong>SPECIES DETECTED</strong> panel and any flagged issues in the <strong>ISSUES DETECTED</strong> panel.</li>
-        <li>Press <strong>COPY</strong> to copy corrected text to the clipboard — outdated synonyms and misspellings are automatically updated.</li>
-      </ol>
-
-      <h3>Classification codes</h3>
-      <ul>
-        <li><span class="hl valid">VALID</span> &mdash; recognized in the AFS 8th edition</li>
-        <li><span class="hl changed">CHANGED</span> &mdash; valid but revised from the 7th edition; confirm species identity</li>
-        <li><span class="hl outdated">OUTDATED</span> &mdash; known synonym; current valid name shown</li>
-        <li><span class="hl misspelled">MISSPELLED</span> &mdash; close match found; suggestion shown</li>
-        <li><span class="hl unknown">UNKNOWN</span> &mdash; genus recognized but species not in database</li>
-        <li><span class="hl common">COMMON NAME</span> &mdash; English common name detected; scientific equivalent shown</li>
-      </ul>
-
-      <h3>Coverage</h3>
-      <p>Covers ~5,086 species from U.S., Canadian, and Mexican waters (AFS 8th edition) with synonyms from Eschmeyer's Catalog of Fishes. Both freshwater and marine species are included. Scientific names only are validated.</p>
-
-      <h3>Key changes in the 8th edition</h3>
-      <p>Several well-known names were revised. Notably, Largemouth Bass changed from <em>Micropterus salmoides</em> to <em>Micropterus nigricans</em>; <em>Micropterus salmoides</em> now refers exclusively to Florida Bass. Names flagged <span class="hl changed">CHANGED</span> warrant careful review.</p>
-
-      <h3>Privacy</h3>
-      <p>No manuscript text you enter is transmitted off your device &mdash; all processing happens locally in your browser.</p>
-      <p><strong>What is collected (with your consent):</strong> approximate location (city and country derived from your IP address via <a href="https://ipapi.co" target="_blank" rel="noopener">ipapi.co</a>), timestamp of visit, and aggregate scan counts. This data documents tool reach and impact for academic reporting.</p>
-      <p><strong>What is NOT collected:</strong> no manuscript text, no personal information, no login credentials, no cookies for tracking, and no user accounts.</p>
-      <p><strong>Where data is stored:</strong> Firebase Realtime Database (Google infrastructure). Third-party services: ipapi.co (IP geolocation) and Firebase (storage).</p>
-      <p><strong>Your control:</strong> You can change your analytics preference at any time using the <em>Privacy</em> link at the bottom of the tool.</p>
-    </div>
-  </div>
-</div>
 
 <main>
 <div class="device">
@@ -93,6 +52,48 @@
   <div class="screen-bezel">
     <div class="screen">
       <img src="data/logo.png" class="screen-watermark" aria-hidden="true" alt="">
+
+      <!-- Info panel (shown on screen when INFO is pressed) -->
+      <div id="info-panel" class="info-panel" hidden>
+        <h2 class="info-panel-header">FISHFINDER — HOW TO USE</h2>
+        <div class="modal-body">
+          <p><strong>FISHFINDER</strong> validates scientific fish names in manuscript text against the <em>Common and Scientific Names of Fishes from the United States, Canada, and Mexico</em>, 8th edition (Page et al., 2023), supplemented by synonym data from Eschmeyer's Catalog of Fishes.</p>
+
+          <h3>Getting started</h3>
+          <ol>
+            <li>Paste your manuscript text into the <strong>TEXT INPUT</strong> area, or press <strong>LOAD</strong> to upload a .txt, .docx, .xlsx, or .pdf file.</li>
+            <li>Press <strong>SCAN</strong> (or Ctrl+Enter) to analyze the text.</li>
+            <li>Review detected species names in the <strong>SPECIES DETECTED</strong> panel and any flagged issues in the <strong>ISSUES DETECTED</strong> panel.</li>
+            <li>Press <strong>COPY</strong> to copy corrected text to the clipboard — outdated synonyms and misspellings are automatically updated.</li>
+          </ol>
+
+          <h3>Classification codes</h3>
+          <ul>
+            <li><span class="hl valid">VALID</span> &mdash; recognized in <em>Names of Fishes</em>, 8th edition</li>
+            <li><span class="hl changed">CHANGED</span> &mdash; valid but revised from the 7th edition; confirm species identity</li>
+            <li><span class="hl outdated">OUTDATED</span> &mdash; known synonym; current valid name shown</li>
+            <li><span class="hl misspelled">MISSPELLED</span> &mdash; close match found; suggestion shown</li>
+            <li><span class="hl unknown">UNKNOWN</span> &mdash; genus recognized but species not in database</li>
+            <li><span class="hl common">COMMON NAME</span> &mdash; English common name detected; scientific equivalent shown</li>
+          </ul>
+
+          <h3>Coverage</h3>
+          <p>Covers ~5,086 species from U.S., Canadian, and Mexican waters (<em>Names of Fishes</em>, 8th edition) with synonyms from Eschmeyer's Catalog of Fishes. Both freshwater and marine species are included. Scientific names only are validated.</p>
+
+          <h3>Key changes in the 8th edition</h3>
+          <p>Several well-known names were revised. Notably, Largemouth Bass changed from <em>Micropterus salmoides</em> to <em>Micropterus nigricans</em>; <em>Micropterus salmoides</em> now refers exclusively to Florida Bass. Names flagged <span class="hl changed">CHANGED</span> warrant careful review.</p>
+
+          <h3>Privacy</h3>
+          <p>No manuscript text you enter is transmitted off your device &mdash; all processing happens locally in your browser.</p>
+          <p><strong>What is collected (with your consent):</strong> approximate location (city and country derived from your IP address via <a href="https://ipapi.co" target="_blank" rel="noopener">ipapi.co</a>), timestamp of visit, and aggregate scan counts. This data documents tool reach and impact for academic reporting.</p>
+          <p><strong>What is NOT collected:</strong> no manuscript text, no personal information, no login credentials, no cookies for tracking, and no user accounts.</p>
+          <p><strong>Where data is stored:</strong> Firebase Realtime Database (Google infrastructure). Third-party services: ipapi.co (IP geolocation) and Firebase (storage).</p>
+          <p><strong>Your control:</strong> You can change your analytics preference at any time using the <em>Privacy</em> link at the bottom of the tool.</p>
+
+          <h3>Report an issue</h3>
+          <p>Found a bug or have a suggestion? <a href="https://github.com/zdzbinden/FISHFINDER/issues" target="_blank" rel="noopener">Submit an issue on GitHub</a>.</p>
+        </div>
+      </div>
 
       <div id="loading" class="loading">
         <div class="loading-spinner"></div>
@@ -182,6 +183,7 @@
     <button id="clear-btn" class="device-btn">CLEAR</button>
     <button id="copy-btn" class="device-btn">COPY</button>
     <button id="info-btn" class="device-btn">INFO</button>
+    <a href="https://github.com/zdzbinden/FISHFINDER/issues" target="_blank" rel="noopener" class="device-btn report-btn">REPORT</a>
   </div>
 
   <!-- Footer / brief credit -->
@@ -200,21 +202,34 @@
   <div class="citations-body" id="citations-body">
     <p class="citation-entry">
       Page, L.M., Espinosa-P&eacute;rez, H., Findley, L.T., Gilbert, C.R., Lea, R.N., Mandrak, N.E.,
-      Mayden, R.L., and Nelson, J.S. (2023). <em>Common and Scientific Names of Fishes from the
-      United States, Canada, and Mexico</em>, 8th edition. American Fisheries Society Special
+      Mayden, R.L., and Nelson, J.S. (2023). <a href="https://fisheries.org/bookstore/all-titles/special-publications/51080c/" target="_blank" rel="noopener"><em>Common and Scientific Names of Fishes from the
+      United States, Canada, and Mexico</em>, 8th edition</a>. American Fisheries Society Special
       Publication 36. American Fisheries Society, Bethesda, Maryland.
     </p>
     <p class="citation-entry">
       Fricke, R., Eschmeyer, W.N., and Van der Laan, R. (eds.) (2026).
-      <em>Eschmeyer's Catalog of Fishes: Genera, Species, References.</em>
+      <a href="https://researcharchive.calacademy.org/research/ichthyology/catalog/fishcatmain.asp" target="_blank" rel="noopener"><em>Eschmeyer's Catalog of Fishes: Genera, Species, References.</em></a>
       California Academy of Sciences. Electronic version accessed 2026.
     </p>
     <p class="citation-entry citation-placeholder">
-      Zbinden, Z.D. (2026). FISHFINDER: Automated Fish Name Validation Reveals Errors in Recent Literature. <em></em>In review.
+      Zbinden, Z.D. (2026). FISHFINDER: Catching Fish Name Errors in Text. <em></em>In review.
       Available at: https://zdzbinden.github.io/FISHFINDER/
     </p>
   </div>
   <button id="cite-btn" class="cite-copy-btn">COPY CITATIONS</button>
+</section>
+
+<!-- ── Affiliations ────────────────────────────────────────────────────── -->
+<section class="affiliations-section">
+  <h2 class="affiliations-header">AFFILIATIONS</h2>
+  <div class="affiliations-body">
+    <a href="https://www.umces.edu" target="_blank" rel="noopener" class="affiliation-link">
+      <img src="data/umces-al-logo.png" alt="UMCES Appalachian Laboratory" class="affiliation-logo">
+    </a>
+    <a href="https://zdzbinden.github.io" target="_blank" rel="noopener" class="affiliation-link">
+      <img src="data/merge-lab-logo.png" alt="MERGE Lab" class="affiliation-logo">
+    </a>
+  </div>
 </section>
 
 <!-- ── Usage dashboard ──────────────────────────────────────────────────── -->
