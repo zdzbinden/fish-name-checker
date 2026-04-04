@@ -899,8 +899,11 @@ select.report-input {
 }
 .affiliation-link:first-child {
   background: #fff;
-  padding: 0.6rem 0.8rem;
+  padding: 0.5rem 0.7rem;
   border-radius: 16px;
+}
+.affiliation-link:first-child .affiliation-logo {
+  height: 150px;
 }
 
 .affiliation-logo {
