@@ -14,6 +14,9 @@
   <meta property="og:description" content="Validate scientific fish names in manuscript text against Names of Fishes, 8th edition (Page et al., 2023). Checks spelling, detects synonyms, and flags outdated names.">
   <meta property="og:url" content="https://zdzbinden.github.io/FISHFINDER/">
   <meta property="og:type" content="website">
+  <meta property="og:image" content="https://zdzbinden.github.io/FISHFINDER/data/og-preview.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
   <!-- CSP: 'unsafe-inline' in style-src required by Leaflet map + dynamic element sizing -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js https://unpkg.com/leaflet@1.9.4/dist/leaflet.js https://*.firebaseio.com; style-src 'self' https://unpkg.com/leaflet@1.9.4/dist/leaflet.css https://fonts.googleapis.com 'unsafe-inline'; connect-src 'self' https://ipapi.co https://*.firebaseio.com wss://*.firebaseio.com https://*.basemaps.cartocdn.com; img-src 'self' https://*.basemaps.cartocdn.com data:; font-src 'self' https://fonts.gstatic.com; frame-src https://*.firebaseio.com;">
   <script type="application/ld+json">
@@ -156,7 +159,7 @@
                aria-label="Upload a text, Word, Excel, or PDF file" hidden>
 
         <!-- Results (hidden until scan) -->
-        <div id="results-section" hidden>
+        <div id="results-section" aria-live="polite" hidden>
 
           <div class="results-divider"></div>
 
@@ -237,9 +240,9 @@
       Publication 36. American Fisheries Society, Bethesda, Maryland.
     </p>
     <p class="citation-entry">
-      Fricke, R., Eschmeyer, W.N., and Van der Laan, R. (eds.) (2026).
+      Fricke, R., Eschmeyer, W.N., and Van der Laan, R. (eds.) (<span class="current-year">2026</span>).
       <a href="https://researcharchive.calacademy.org/research/ichthyology/catalog/fishcatmain.asp" target="_blank" rel="noopener"><em>Eschmeyer's Catalog of Fishes: Genera, Species, References.</em></a>
-      California Academy of Sciences. Electronic version accessed 2026.
+      California Academy of Sciences. Electronic version accessed <span class="current-year">2026</span>.
     </p>
     <p class="citation-entry citation-placeholder">
       Zbinden, Z.D. (2026). FISHFINDER: Catching Fish Name Errors in Text. <em></em>In review.

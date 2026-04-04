@@ -57,7 +57,7 @@
       if (entry.lSpecies[0] !== ls[0] &&
           Math.abs(entry.lSpecies.charCodeAt(0) - ls.charCodeAt(0)) > 2) continue;
 
-      const sd = levenshtein(ls, entry.lSpecies, maxDist);
+      const sd = levenshtein(ls, entry.lSpecies, maxDist - gd);
       const total = gd + sd;
 
       if (total < bestDist) {

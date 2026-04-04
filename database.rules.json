@@ -32,7 +32,7 @@
       "stats": {
         ".read": true,
         "sessions":      { ".write": true, ".validate": "newData.isNumber() && ((!data.exists() && newData.val() === 1) || (data.exists() && newData.val() === data.val() + 1))" },
-        "species_total": { ".write": true, ".validate": "newData.isNumber() && newData.val() >= data.val()" },
+        "species_total": { ".write": true, ".validate": "newData.isNumber() && newData.val() >= data.val() && newData.val() <= data.val() + 500" },
         "$other":        { ".validate": false }
       }
     }

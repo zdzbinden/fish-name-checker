@@ -37,6 +37,11 @@
   const summaryTbody   = document.getElementById('summary-tbody');
   const issueBadge     = document.getElementById('issue-count');
 
+  // ── Dynamic year in citations ─────────────────────────────────────────────
+  document.querySelectorAll('.current-year').forEach(el => {
+    el.textContent = new Date().getFullYear();
+  });
+
   // ── Database loading ──────────────────────────────────────────────────────
   async function loadDatabase() {
     loadingEl.hidden   = false;
@@ -109,41 +114,49 @@
 
     // Yield to browser to update button state, then process
     setTimeout(() => {
-      const candidates = FishEngine.extractCandidates(text, lookups);
-      const findings   = [];
+      try {
+        const candidates = FishEngine.extractCandidates(text, lookups);
+        const findings   = [];
 
-      for (const cand of candidates) {
-        const result = FishEngine.classifyName(lookups, cand.genus, cand.species);
-        if (!result) continue;
-        findings.push({
-          text:       cand.text,
-          binomial:   `${cand.genus} ${cand.species}`,
-          index:      cand.index,
-          type:       result.type,
-          suggestion: result.suggestion,
-          commonName: result.commonName || '',
-        });
-      }
+        for (const cand of candidates) {
+          const result = FishEngine.classifyName(lookups, cand.genus, cand.species);
+          if (!result) continue;
+          findings.push({
+            text:       cand.text,
+            binomial:   `${cand.genus} ${cand.species}`,
+            index:      cand.index,
+            type:       result.type,
+            suggestion: result.suggestion,
+            commonName: result.commonName || '',
+          });
+        }
 
-      // Second pass: scan for common names (2+ words, case-insensitive)
-      const binomialSpans = findings.map(f => ({ start: f.index, end: f.index + f.text.length }));
-      const commonHits = FishEngine.extractCommonNames(lookups, text, binomialSpans);
-      findings.push(...commonHits);
+        // Second pass: scan for common names (2+ words, case-insensitive)
+        const binomialSpans = findings.map(f => ({ start: f.index, end: f.index + f.text.length }));
+        const commonHits = FishEngine.extractCommonNames(lookups, text, binomialSpans);
+        findings.push(...commonHits);
 
-      // Cache for copyText reuse
-      lastFindings = findings;
-      lastScanText = text;
+        // Cache for copyText reuse
+        lastFindings = findings;
+        lastScanText = text;
 
-      // Track species count (non-blocking)
-      trackSpecies(findings.length);
+        // Track species count (non-blocking)
+        trackSpecies(findings.length);
 
-      // Play animation if fish were found, then render results
-      const doRender = () => renderResults(findings);
-      if (findings.length > 0 &&
-          !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-        playPostScanAnimation(textarea.value, findings, doRender);
-      } else {
-        doRender();
+        // Play animation if fish were found, then render results
+        const doRender = () => renderResults(findings);
+        if (findings.length > 0 &&
+            !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+          playPostScanAnimation(textarea.value, findings, doRender);
+        } else {
+          doRender();
+        }
+      } catch (err) {
+        console.error('Scan failed:', err);
+        alert('An error occurred during scanning. Please try again.');
+        isScanning           = false;
+        checkBtn.disabled    = false;
+        checkBtn.textContent = 'SCAN';
       }
     }, 10);
   }
@@ -258,12 +271,14 @@
       done = true;
       if (rafId) cancelAnimationFrame(rafId);
       canvas.removeEventListener('click', finish);
+      document.removeEventListener('keydown', finish);
       if (canvas.parentNode) canvas.parentNode.removeChild(canvas);
       onComplete();
     }
 
-    // Click to skip
+    // Click or keypress to skip
     canvas.addEventListener('click', finish);
+    document.addEventListener('keydown', finish);
 
     function drawSprite(sprite, x, y, scale, alpha, flipX) {
       ctx.globalAlpha = alpha;
@@ -465,6 +480,10 @@
   // ── Copy corrected text to clipboard ──────────────────────────────────────
   function copyText() {
     const text = textarea.value;
+    if (!text.trim()) {
+      alert('No text to copy — paste manuscript text first.');
+      return;
+    }
     // Reuse cached findings if text hasn't changed since last scan
     const findings = (lastFindings && lastScanText === text)
       ? lastFindings
@@ -514,10 +533,10 @@
     pdfjs:       { src: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js',
                    integrity: 'sha384-/1qUCSGwTur9vjf/z9lmu/eCUYbpOTgSjmpbMQZ1/CtX2v/WcAIKqRv+U1DUCG6e' },
     pdfjsW:      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js',  // no SRI (worker)
-    firebaseApp: { src: 'https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js',
-                   integrity: 'sha384-ajMUFBUFMCyjh8uxJg6bkGcKe9RTolyjwbxB3yES0QQMenP3Oztj/W9vA2SJPcIh' },
-    firebaseDb:  { src: 'https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js',
-                   integrity: 'sha384-f6/UpzjTjIXASlp20cArQsaRh1EvHVJd5kegy/gYR9W2D0a32TnEqUEiW4Zm/5O0' },
+    firebaseApp: { src: 'https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js',
+                   integrity: 'sha384-ZaR6mWzmJtrRibZ1Vm7SoHFr8OXjyAuGAXalGDKqbxFT18oi/z+oZLIRFkpeNor1' },
+    firebaseDb:  { src: 'https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js',
+                   integrity: 'sha384-g5H2aNdtgRBYOBLsuOAuHvUXWnw4bswmU+tYjmGc1G3JfKxl79uWwV4sQarJsLwu' },
     leafletJs:   { src: 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
                    integrity: 'sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH' },
     leafletCss:  { src: 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
@@ -723,6 +742,7 @@
     if (sessionStorage.getItem('ff_tracked')) return;
     const lastWrite = parseInt(storageGet('ff_last_write') || '0', 10);
     if (Date.now() - lastWrite < 60000) return;
+    sessionStorage.setItem('ff_tracked', '1');
     try {
       const geo = await fetch('https://ipapi.co/json/').then(r => r.json());
       if (!geo || !geo.latitude) return;
@@ -735,7 +755,6 @@
         ts:      Date.now(),
       });
       await fbDb.ref('fishfinder/stats/sessions').transaction(v => (v || 0) + 1);
-      sessionStorage.setItem('ff_tracked', '1');
       storageSet('ff_last_write', String(Date.now()));
     } catch (e) {
       console.warn('Analytics unavailable:', e.message);
