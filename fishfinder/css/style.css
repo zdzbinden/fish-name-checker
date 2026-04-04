@@ -903,6 +903,7 @@ select.report-input {
   background: #fff;
   padding: 0.5rem 0.7rem;
   border-radius: 16px;
+  max-width: 100%;
 }
 .affiliation-link:first-child .affiliation-logo {
   height: 150px;
@@ -911,6 +912,7 @@ select.report-input {
 .affiliation-logo {
   height: 250px;
   width: auto;
+  max-width: 100%;
   transition: filter 0.2s ease;
 }
 
