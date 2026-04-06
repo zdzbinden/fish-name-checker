@@ -1,0 +1,58 @@
+FISHFINDER
+Copyright (c) 2026 Zach Zbinden
+
+This product includes software developed by Zach Zbinden, licensed under
+the PolyForm Noncommercial License 1.0.0. See the LICENSE file for the
+full text of those terms.
+
+================================================================================
+Software (code)
+================================================================================
+
+All source code in this repository — including but not limited to the
+contents of `fishfinder/`, `parse_pdf.py`, `scrape_eschmeyer.py`,
+`rescrape_transfers.py`, and `meta_analysis/` — is licensed under the
+PolyForm Noncommercial License 1.0.0.
+
+Noncommercial use (academic research, educational institutions, government
+agencies, public research organizations, environmental and conservation
+nonprofits, personal study) is permitted without charge under those terms.
+
+For commercial licensing — including use by for-profit publishers,
+commercial copy-editing services, or any use intended to generate revenue —
+please contact the author at: https://github.com/zdzbinden/FISHFINDER
+
+================================================================================
+Fish name database (data)
+================================================================================
+
+The file `fishfinder/data/fish_names.json` is a derived dataset built from:
+
+  Page, L. M., H. Espinosa-Perez, L. T. Findley, C. R. Gilbert, R. N. Lea,
+  N. E. Mandrak, R. L. Mayden, and J. S. Nelson. 2023. Common and
+  Scientific Names of Fishes from the United States, Canada, and Mexico,
+  8th edition. American Fisheries Society, Special Publication 36,
+  Bethesda, Maryland.
+
+The taxonomic content (species names, authorities, common names,
+classifications) is the intellectual property of the American Fisheries
+Society and the original authors. It is reproduced here under a good-faith
+fair-use rationale for the purpose of scholarly name verification, and is
+NOT licensed under PolyForm Noncommercial. Users who wish to redistribute
+or build commercial products on this data should consult the AFS directly.
+
+Synonym annotations in the same file are derived from:
+
+  Fricke, R., W. N. Eschmeyer, and R. van der Laan (eds). Eschmeyer's
+  Catalog of Fishes: Genera, Species, References. California Academy of
+  Sciences. https://researcharchive.calacademy.org/research/ichthyology/catalog/
+
+Eschmeyer's Catalog is publicly accessible for scholarly use; rights in
+that data remain with the California Academy of Sciences.
+
+================================================================================
+Source PDFs
+================================================================================
+
+The PDF files under `names_of_fishes/` are copyrighted publications of the
+American Fisheries Society and are not distributed with this repository.

@@ -85,6 +85,26 @@ Bethesda, Maryland.
 
 ## License
 
-This tool is provided for academic and professional use by the fisheries and
-ichthyology community. The underlying name data is derived from the AFS/ASIH
-publication cited above.
+FISHFINDER source code is licensed under the
+[PolyForm Noncommercial License 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0/).
+See [LICENSE](LICENSE) for the full text and [NOTICE](NOTICE) for attribution
+of the underlying fish name data.
+
+**Free for noncommercial use**, including:
+
+- Academic research and teaching at universities and colleges
+- Government agencies (federal, state, tribal, provincial, municipal)
+- Public research organizations and natural history museums
+- Environmental and conservation nonprofits
+- Personal study, hobby projects, and amateur ichthyology
+
+**Commercial use requires a separate license.** This includes for-profit
+publishers, commercial copy-editing services, and any other use intended to
+generate revenue. To inquire about commercial licensing, please open an issue
+on the [GitHub repository](https://github.com/zdzbinden/FISHFINDER).
+
+The underlying fish name database is derived from Page et al. 2023 (cited
+above) and remains the intellectual property of the American Fisheries
+Society. It is reproduced here for scholarly name verification and is **not**
+covered by the PolyForm Noncommercial license. See [NOTICE](NOTICE) for
+details.
