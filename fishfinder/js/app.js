@@ -140,7 +140,8 @@
         lastFindings = findings;
         lastScanText = text;
 
-        // Track species count (non-blocking)
+        // Track scan session + species count (non-blocking, once per session)
+        trackVisit().catch(() => {});
         trackSpecies(findings.length);
 
         // Play animation if fish were found, then render results
@@ -929,7 +930,6 @@
     consentAccept.addEventListener('click', () => {
       storageSet('ff_consent', 'accepted');
       hideConsentBanner();
-      trackVisit().catch(() => {});
     });
   }
   if (consentDecline) {
@@ -957,9 +957,7 @@
   loadDashboard();
 
   const consent = storageGet('ff_consent');
-  if (consent === 'accepted') {
-    trackVisit().catch(() => {});
-  } else if (!consent) {
+  if (!consent) {
     showConsentBanner();
   }
 }());
