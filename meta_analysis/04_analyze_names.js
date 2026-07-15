@@ -11,10 +11,10 @@
 
 const fs = require('fs');
 const path = require('path');
-const engine = require('../../fishfinder/js/engine.js');
+const engine = require('../fishfinder/js/engine.js');
 
 // Load species database and build lookups (once)
-const dbPath = path.join(__dirname, '..', '..', 'fishfinder', 'data', 'fish_names.json');
+const dbPath = path.join(__dirname, '..', 'fishfinder', 'data', 'fish_names.json');
 const db = JSON.parse(fs.readFileSync(dbPath, 'utf-8'));
 const lookups = engine.buildLookups(db);
 

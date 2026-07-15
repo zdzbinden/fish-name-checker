@@ -15,6 +15,7 @@ Usage:
     uv run --with requests --with beautifulsoup4 python scrape_eschmeyer.py
 """
 
+import datetime
 import json
 import re
 import sys
@@ -31,6 +32,7 @@ except ImportError:
 
 DATA_PATH  = Path(__file__).parent / "fishfinder" / "data" / "fish_names.json"
 CACHE_PATH = Path(__file__).parent / "eschmeyer_cache.json"
+EXTRALIMITAL_PATH = Path(__file__).parent / "extralimital_valids.json"
 
 BASE_URL = (
     "https://researcharchive.calacademy.org"
@@ -238,6 +240,16 @@ def main():
     species_list = list(data["valid_names"].keys())
     print(f"Loaded {len(species_list)} species from fish_names.json")
 
+    # Valid extralimital species that must never be recorded as synonyms
+    # (Reviewer 1, round 2 — e.g. Misgurnus fossilis). See extralimital_valids.json.
+    extralimital_valids: set[str] = set()
+    if EXTRALIMITAL_PATH.exists():
+        with open(EXTRALIMITAL_PATH, encoding="utf-8") as f:
+            extralimital_valids = set(json.load(f).keys())
+        print(f"Loaded {len(extralimital_valids)} extralimital valids to exclude from synonyms")
+
+    rebuild_only = "--rebuild-only" in sys.argv
+
     # Load or initialise cache
     if CACHE_PATH.exists():
         with open(CACHE_PATH, encoding="utf-8") as f:
@@ -247,6 +259,9 @@ def main():
         cache = {}
 
     remaining = [s for s in species_list if s not in cache]
+    if rebuild_only:
+        print("--rebuild-only: skipping scrape; rebuilding synonym map from cache")
+        remaining = []
     print(f"{len(remaining)} species left to query  (~{len(remaining)//60} min at 1 req/s)\n")
 
     session = requests.Session()
@@ -304,8 +319,11 @@ def main():
             continue  # failed request; skip
 
         for old_name in entry.get("synonyms", []):
-            # Only add as synonym if it's not already a valid AFS name
-            if old_name not in data["valid_names"]:
+            # Only add as synonym if it's not already a valid AFS name, and not a
+            # valid extralimital species (Reviewer 1, round 2). Without the second
+            # guard a valid non-North-American species (e.g. Misgurnus fossilis) is
+            # mislabeled as an "outdated synonym" of an AFS congener.
+            if old_name not in data["valid_names"] and old_name not in extralimital_valids:
                 synonyms[old_name] = binomial
 
         # Track names AFS considers valid that Eschmeyer considers outdated
@@ -317,13 +335,15 @@ def main():
     data["synonyms"] = synonyms
     data["metadata"]["synonym_source"] = "Eschmeyer's Catalog of Fishes"
     data["metadata"]["synonym_count"]  = len(synonyms)
+    data["metadata"]["extralimital_excluded"] = sorted(extralimital_valids)
+    data["metadata"]["synonym_generated"] = datetime.date.today().isoformat()
 
     with open(DATA_PATH, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
     print(f"\nfish_names.json updated.")
     print(f"  Synonyms added  : {len(synonyms)}")
-    print(f"  Name mismatches : {len(mismatches)}  (AFS valid ≠ Eschmeyer valid)")
+    print(f"  Name mismatches : {len(mismatches)}  (AFS valid != Eschmeyer valid)")
 
     if mismatches:
         print("\n  First 10 mismatches:")

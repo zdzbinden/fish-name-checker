@@ -19,6 +19,7 @@ from bs4 import BeautifulSoup
 
 DATA_PATH  = Path(__file__).parent / "fishfinder" / "data" / "fish_names.json"
 CACHE_PATH = Path(__file__).parent / "eschmeyer_cache.json"
+EXTRALIMITAL_PATH = Path(__file__).parent / "extralimital_valids.json"
 
 BASE_URL = (
     "https://researcharchive.calacademy.org"
@@ -164,13 +165,20 @@ def main():
         json.dump(cache, f, ensure_ascii=False, indent=2)
     print(f"\nCache saved. Updated {updated} entries.")
 
-    # Rebuild synonyms in fish_names.json
+    # Rebuild synonyms in fish_names.json. Exclude valid extralimital species
+    # (Reviewer 1, round 2) so they are never mislabeled as synonyms — mirrors
+    # the guard in scrape_eschmeyer.py. See extralimital_valids.json.
+    extralimital_valids = set()
+    if EXTRALIMITAL_PATH.exists():
+        with open(EXTRALIMITAL_PATH, encoding="utf-8") as f:
+            extralimital_valids = set(json.load(f).keys())
+
     synonyms = {}
     for binomial, entry in cache.items():
         if entry.get("valid") is None:
             continue
         for old_name in entry.get("synonyms", []):
-            if old_name not in data["valid_names"]:
+            if old_name not in data["valid_names"] and old_name not in extralimital_valids:
                 synonyms[old_name] = binomial
 
     data["synonyms"] = synonyms

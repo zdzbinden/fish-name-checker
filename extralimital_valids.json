@@ -1,0 +1,68 @@
+{
+  "Acanthurus bahianus": {
+    "mapped_target": "Acanthurus tractus",
+    "eschmeyer_status": "Valid as Acanthurus bahianus",
+    "reason": "distinct valid species (extralimital to Names of Fishes); wrongly entered as a synonym — removed",
+    "verified": "2026-07-14 (Eschmeyer's Catalog of Fishes)"
+  },
+  "Acipenser sturio": {
+    "mapped_target": "Acipenser oxyrinchus",
+    "eschmeyer_status": "Valid as Acipenser sturio",
+    "reason": "distinct valid species (extralimital to Names of Fishes); wrongly entered as a synonym — removed",
+    "verified": "2026-07-14 (Eschmeyer's Catalog of Fishes)"
+  },
+  "Ariopsis seemanni": {
+    "mapped_target": "Ariopsis guatemalensis",
+    "eschmeyer_status": "Valid as Ariopsis seemanni",
+    "reason": "distinct valid species (extralimital to Names of Fishes); wrongly entered as a synonym — removed",
+    "verified": "2026-07-14 (Eschmeyer's Catalog of Fishes)"
+  },
+  "Carassius carassius": {
+    "mapped_target": "Carassius gibelio",
+    "eschmeyer_status": "Valid as Carassius carassius",
+    "reason": "distinct valid species (extralimital to Names of Fishes); wrongly entered as a synonym — removed",
+    "verified": "2026-07-14 (Eschmeyer's Catalog of Fishes)"
+  },
+  "Misgurnus fossilis": {
+    "mapped_target": "Misgurnus anguillicaudatus",
+    "eschmeyer_status": "Valid as Misgurnus fossilis",
+    "reason": "distinct valid species (extralimital to Names of Fishes); wrongly entered as a synonym — removed",
+    "verified": "2026-07-14 (Eschmeyer's Catalog of Fishes)"
+  },
+  "Paranthias furcifer": {
+    "mapped_target": "Cephalopholis colonus",
+    "eschmeyer_status": "Valid as Paranthias furcifer",
+    "reason": "distinct valid species (extralimital to Names of Fishes); wrongly entered as a synonym — removed",
+    "verified": "2026-07-14 (Eschmeyer's Catalog of Fishes)"
+  },
+  "Platichthys flesus": {
+    "mapped_target": "Platichthys stellatus",
+    "eschmeyer_status": "Valid as Platichthys flesus",
+    "reason": "distinct valid species (extralimital to Names of Fishes); wrongly entered as a synonym — removed",
+    "verified": "2026-07-14 (Eschmeyer's Catalog of Fishes)"
+  },
+  "Priacanthus macracanthus": {
+    "mapped_target": "Heteropriacanthus carolinus",
+    "eschmeyer_status": "Valid as Priacanthus macracanthus",
+    "reason": "distinct valid species (extralimital to Names of Fishes); wrongly entered as a synonym — removed",
+    "verified": "2026-07-14 (Eschmeyer's Catalog of Fishes)"
+  },
+  "Rhamdia quelen": {
+    "mapped_target": "Rhamdia guatemalensis",
+    "eschmeyer_status": "Valid as Rhamdia quelen",
+    "reason": "distinct valid species (extralimital to Names of Fishes); wrongly entered as a synonym — removed",
+    "verified": "2026-07-14 (Eschmeyer's Catalog of Fishes)"
+  },
+  "Seriola lalandi": {
+    "mapped_target": "Seriola rivoliana",
+    "eschmeyer_status": "Valid as Seriola lalandi",
+    "reason": "distinct valid species (extralimital to Names of Fishes); wrongly entered as a synonym — removed",
+    "verified": "2026-07-14 (Eschmeyer's Catalog of Fishes)"
+  },
+  "Sphyraena obtusata": {
+    "mapped_target": "Sphyraena barracuda",
+    "eschmeyer_status": "Valid as Sphyraena obtusata",
+    "reason": "distinct valid species (extralimital to Names of Fishes); wrongly entered as a synonym — removed",
+    "verified": "2026-07-14 (Eschmeyer's Catalog of Fishes)"
+  }
+}

@@ -37,6 +37,51 @@ describe('classifyName', () => {
       assert.equal(r.type, 'outdated');
       assert.equal(r.suggestion, 'Sander vitreus');
     });
+
+    // Legitimate genus transfers / junior synonyms must STILL be flagged after
+    // the round-2 extralimital cleanup (anti-over-deletion guard).
+    for (const [g, s, exp] of [
+      ['Tilapia', 'zillii', 'Coptodon zillii'],           // genus transfer
+      ['Notropis', 'hudsonius', 'Hudsonius hudsonius'],   // 8th-ed genus split
+      ['Notropis', 'deliciosus', 'Miniellus stramineus'], // junior synonym preserved
+      ['Petromyzon', 'americanus', 'Petromyzon marinus'], // same-genus junior synonym
+    ]) {
+      it(`still flags ${g} ${s} as outdated -> ${exp}`, () => {
+        const r = classify(g, s);
+        assert.ok(r, 'should not be null');
+        assert.equal(r.type, 'outdated');
+        assert.equal(r.suggestion, exp);
+      });
+    }
+  });
+
+  // ── Extralimital valid species must NOT be flagged (Reviewer 1, round 2) ──
+  //    Valid species outside the Names of Fishes area that were wrongly scraped
+  //    as synonyms. Verified against Eschmeyer's Catalog and removed; see
+  //    extralimital_valids.json. They must never be presented as an "outdated"
+  //    name to be "corrected" to a different, North American species.
+  describe('extralimital valid species (not synonyms)', () => {
+    for (const [g, s] of [
+      ['Misgurnus', 'fossilis'],       // reviewer-named — European weatherfish
+      ['Platichthys', 'flesus'],       // reviewer-named — European flounder
+      ['Ariopsis', 'seemanni'],        // reviewer-named
+      ['Seriola', 'lalandi'],          // beyond the reviewer's list
+      ['Sphyraena', 'obtusata'],
+      ['Acipenser', 'sturio'],
+      ['Carassius', 'carassius'],
+      ['Priacanthus', 'macracanthus'],
+      ['Rhamdia', 'quelen'],
+      ['Acanthurus', 'bahianus'],
+      ['Paranthias', 'furcifer'],
+    ]) {
+      it(`does not flag ${g} ${s} as an outdated synonym`, () => {
+        const r = classify(g, s);
+        assert.notEqual(r && r.type, 'outdated',
+          `${g} ${s} is a valid extralimital species, not a synonym`);
+        // Must not auto-suggest replacing it with a different species.
+        assert.ok(!(r && r.suggestion), 'must not suggest a replacement');
+      });
+    }
   });
 
   // ── Misspelled names ──────────────────────────────────────────────────

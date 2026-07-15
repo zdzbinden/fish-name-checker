@@ -2,194 +2,186 @@
 """
 Step 5: Aggregate FISHFINDER analysis results into summary statistics.
 
-Reads per-paper JSON results from cache/results/ and produces:
+Round-2 revision (Reviewer 1) changes:
+  * Geographic scope is now enforced by an explicit, human-approved include/
+    exclude list (paper_review.json), not the old automated NA-ratio heuristic.
+  * The headline analysis runs on BODY text only (cache/results_body); names
+    that appear solely in reference lists are tabulated separately and excluded.
+  * Reports a TRUE globally-deduplicated distinct-species count, and relabels
+    the previous per-paper sum as "name detections" (it is not a species count).
+
+Reads cache/results_body/ (+ cache/results_refs/) and produces:
   - cache/summary.json (structured data)
   - cache/summary.md  (formatted report for manuscript insertion)
-
-Papers where fewer than NA_SPECIES_RATIO_THRESHOLD of detected species
-are in the AFS database are flagged as non-North-American studies and
-excluded from the main statistics.
 """
 
 import json
 from collections import Counter
 from config import (
-    PAPERS_CACHE, RESULTS_DIR, SUMMARY_FILE, SUMMARY_MD,
-    NA_SPECIES_RATIO_THRESHOLD,
+    PAPERS_CACHE, RESULTS_BODY_DIR, RESULTS_REFS_DIR, PAPER_REVIEW,
+    SUMMARY_FILE, SUMMARY_MD,
 )
+
+ISSUE_TYPES = ('outdated', 'misspelled')
+SPECIES_TYPES = ('valid', 'changed', 'outdated', 'misspelled')
 
 
 def load_papers():
-    """Load papers cache for metadata."""
     if not PAPERS_CACHE.exists():
         return {'papers': {}}
     with open(PAPERS_CACHE, 'r', encoding='utf-8') as f:
         return json.load(f)
 
 
-def load_results():
-    """Load all per-paper analysis results."""
+def load_results(results_dir):
     results = {}
-    if not RESULTS_DIR.exists():
+    if not results_dir.exists():
         return results
-    for f in RESULTS_DIR.glob('*.json'):
+    for f in results_dir.glob('*.json'):
         with open(f, 'r', encoding='utf-8') as fp:
-            data = json.load(fp)
-            results[f.stem] = data
+            results[f.stem] = json.load(fp)
     return results
 
 
 def build_paper_lookup(cache):
-    """Build a filename-hash -> paper metadata lookup."""
+    """filename-hash -> paper metadata."""
     lookup = {}
-    for doi, paper in cache.get('papers', {}).items():
-        pdf_file = paper.get('pdf_file', '')
-        if pdf_file:
-            lookup[pdf_file] = paper
+    for paper in cache.get('papers', {}).values():
+        pf = paper.get('pdf_file', '')
+        if pf:
+            lookup[pf] = paper
     return lookup
 
 
-def compute_na_ratio(classifications):
-    """Fraction of classified species that are in the AFS database.
+def load_review():
+    if not PAPER_REVIEW.exists():
+        return {}
+    with open(PAPER_REVIEW, 'r', encoding='utf-8') as f:
+        return json.load(f)
 
-    AFS-recognized types: valid, changed, outdated, misspelled, common_name
-    Non-AFS type: unknown (genus recognized, species not in database)
-    """
-    na_types = ('valid', 'changed', 'outdated', 'misspelled', 'common_name')
-    na_count = sum(classifications.get(t, 0) for t in na_types)
-    unknown = classifications.get('unknown', 0)
-    total = na_count + unknown
-    if total == 0:
-        return 1.0  # no species found → don't exclude
-    return na_count / total
+
+def canonical(detail):
+    """Current valid name a detection resolves to (folds synonyms/misspellings)."""
+    return (detail.get('suggestion') or detail.get('binomial') or '').strip()
 
 
 def summarize():
-    """Generate summary statistics from analysis results."""
     cache = load_papers()
     paper_lookup = build_paper_lookup(cache)
-    results = load_results()
+    review = load_review()
+    body = load_results(RESULTS_BODY_DIR)
+    refs = load_results(RESULTS_REFS_DIR)
 
-    if not results:
-        print('No analysis results found. Run steps 1-4 first.')
+    if not body:
+        print('No body results found. Run steps 3b + 4 (--batch cache/texts_body) first.')
         return
 
-    print(f'Summarizing {len(results)} analyzed papers.\n')
+    print(f'Summarizing {len(body)} analyzed papers against {len(review)} decisions.\n')
 
-    # ── Classify papers as NA or excluded ────────────────────────────────
-    included_results = {}
-    excluded_papers = []
-
-    for file_hash, result in results.items():
-        classifications = result.get('classifications', {})
-        n_unknown = classifications.get('unknown', 0)
-        ratio = compute_na_ratio(classifications)
-
-        if ratio < NA_SPECIES_RATIO_THRESHOLD and n_unknown > 3:
-            paper_meta = paper_lookup.get(file_hash, {})
+    # ── Apply the approved geographic include/exclude list, then drop papers
+    #    in which FISHFINDER detected no scientific names in the body text — a
+    #    paper that uses no binomials cannot be assessed for naming errors, and
+    #    this also removes non-article content (wrong/corrupt PDFs). ──────────
+    BINOMIAL_TYPES = ('valid', 'changed', 'outdated', 'misspelled', 'unknown')
+    included, excluded_papers, excluded_no_names = {}, [], []
+    for file_hash, result in body.items():
+        meta = paper_lookup.get(file_hash, {})
+        doi = meta.get('doi', '')
+        dec = review.get(doi, {})
+        if dec.get('decision') == 'exclude':
             excluded_papers.append({
-                'file_hash': file_hash,
-                'doi': paper_meta.get('doi', ''),
-                'title': paper_meta.get('title', 'Unknown'),
-                'na_ratio': round(ratio, 2),
-                'unknown_count': n_unknown,
-                'reason': 'low_na_species_ratio',
+                'file_hash': file_hash, 'doi': doi,
+                'title': meta.get('title', 'Unknown'),
+                'reason': dec.get('reason', 'excluded'),
             })
-        else:
-            included_results[file_hash] = result
+            continue
+        cls = result.get('classifications', {})
+        if sum(cls.get(t, 0) for t in BINOMIAL_TYPES) == 0:
+            excluded_no_names.append({
+                'file_hash': file_hash, 'doi': doi,
+                'title': meta.get('title', 'Unknown'),
+            })
+            continue
+        included[file_hash] = result
 
-    if excluded_papers:
-        print(f'Excluded {len(excluded_papers)} non-North-American papers '
-              f'(NA species ratio < {NA_SPECIES_RATIO_THRESHOLD}).')
+    print(f'Included: {len(included)}   Excluded (out-of-scope): {len(excluded_papers)}   '
+          f'Excluded (no scientific names): {len(excluded_no_names)}')
 
-    # ── Aggregate statistics (included papers only) ──────────────────────
-    total_papers = len(included_results)
-    papers_with_issues = 0
-    papers_with_outdated = 0
-    papers_with_misspelled = 0
-    papers_with_changed = 0
-    papers_with_unknown = 0
-
-    total_species_found = 0
+    # ── Aggregate included body results ──────────────────────────────────────
+    total_papers = len(included)
+    papers_with_issues = papers_with_outdated = papers_with_misspelled = 0
+    papers_with_changed = papers_with_unknown = 0
+    total_detections = 0
     total_by_type = Counter()
-    outdated_names = Counter()
-    misspelled_names = Counter()
-    changed_names = Counter()
-    all_species = Counter()     # every species by classification type
+    outdated_names, misspelled_names, changed_names = Counter(), Counter(), Counter()
+    all_species = Counter()          # canonical name -> detection count (papers)
+    distinct_species = set()         # globally deduplicated valid-species set
     journal_counts = Counter()
-
     paper_details = []
 
-    for file_hash, result in included_results.items():
-        paper_meta = paper_lookup.get(file_hash, {})
-
-        n_unique = result.get('unique_binomials', 0)
-        classifications = result.get('classifications', {})
+    for file_hash, result in included.items():
+        meta = paper_lookup.get(file_hash, {})
+        cls = result.get('classifications', {})
         details = result.get('details', [])
-
-        total_species_found += n_unique
-
-        for dtype, count in classifications.items():
+        total_detections += result.get('unique_binomials', 0)
+        for dtype, count in cls.items():
             total_by_type[dtype] += count
 
-        n_outdated = classifications.get('outdated', 0)
-        n_misspelled = classifications.get('misspelled', 0)
-        n_changed = classifications.get('changed', 0)
-        n_unknown = classifications.get('unknown', 0)
+        n_out, n_mis = cls.get('outdated', 0), cls.get('misspelled', 0)
+        n_chg, n_unk = cls.get('changed', 0), cls.get('unknown', 0)
+        has_issues = (n_out + n_mis) > 0
+        papers_with_issues += has_issues
+        papers_with_outdated += n_out > 0
+        papers_with_misspelled += n_mis > 0
+        papers_with_changed += n_chg > 0
+        papers_with_unknown += n_unk > 0
 
-        # Issues = outdated + misspelled only (NOT unknown)
-        has_issues = (n_outdated + n_misspelled) > 0
-
-        if has_issues:
-            papers_with_issues += 1
-        if n_outdated > 0:
-            papers_with_outdated += 1
-        if n_misspelled > 0:
-            papers_with_misspelled += 1
-        if n_changed > 0:
-            papers_with_changed += 1
-        if n_unknown > 0:
-            papers_with_unknown += 1
-
-        # Track specific problematic names
         for d in details:
-            binomial = d.get('binomial', '')
-            dtype = d.get('type', '')
+            dtype, binomial = d.get('type', ''), d.get('binomial', '')
             if dtype == 'outdated':
                 outdated_names[binomial] += 1
             elif dtype == 'misspelled':
                 misspelled_names[binomial] += 1
             elif dtype == 'changed':
                 changed_names[binomial] += 1
+            if dtype in SPECIES_TYPES:
+                canon = canonical(d)
+                all_species[canon] += 1
+                distinct_species.add(canon.lower())
 
-            # Track all species for frequency analysis
-            if dtype in ('valid', 'changed', 'outdated', 'misspelled'):
-                suggestion = d.get('suggestion')
-                canonical = suggestion if suggestion else binomial
-                all_species[canonical] += 1
-
-        journal = paper_meta.get('journal', 'Unknown')
+        journal = meta.get('journal', 'Unknown')
         journal_counts[journal] += 1
-
         paper_details.append({
-            'file_hash': file_hash,
-            'doi': paper_meta.get('doi', ''),
-            'title': paper_meta.get('title', 'Unknown'),
-            'year': paper_meta.get('year', 0),
-            'journal': journal,
-            'species_found': n_unique,
-            'outdated': n_outdated,
-            'misspelled': n_misspelled,
-            'changed': n_changed,
-            'unknown': n_unknown,
-            'has_issues': has_issues,
+            'file_hash': file_hash, 'doi': meta.get('doi', ''),
+            'title': meta.get('title', 'Unknown'), 'year': meta.get('year', 0),
+            'journal': journal, 'species_found': result.get('unique_binomials', 0),
+            'outdated': n_out, 'misspelled': n_mis, 'changed': n_chg,
+            'unknown': n_unk, 'has_issues': has_issues,
         })
 
-    # Sort by number of issues (descending)
     paper_details.sort(key=lambda p: p['outdated'] + p['misspelled'], reverse=True)
 
-    # ── Build summary ────────────────────────────────────────────────────
+    # ── Reference-only errors (excluded from the headline) ───────────────────
+    # For each INCLUDED paper, issue-names present in its reference list but NOT
+    # in its body — these were formerly counted as author errors (Reviewer 1).
+    ref_only_names = Counter()
+    papers_with_ref_only = 0
+    for file_hash in included:
+        body_issue = {d['binomial'] for d in included[file_hash].get('details', [])
+                      if d.get('type') in ISSUE_TYPES}
+        refs_res = refs.get(file_hash, {})
+        refs_issue = {d['binomial'] for d in refs_res.get('details', [])
+                      if d.get('type') in ISSUE_TYPES}
+        only = refs_issue - body_issue
+        if only:
+            papers_with_ref_only += 1
+            for name in only:
+                ref_only_names[name] += 1
+
+    # ── Build summary ────────────────────────────────────────────────────────
     pct = lambda n: round(n / total_papers * 100, 1) if total_papers else 0
+    n_common = total_by_type.get('common', 0)
+    n_unknown = total_by_type.get('unknown', 0)
 
     summary = {
         'total_papers_analyzed': total_papers,
@@ -204,7 +196,13 @@ def summarize():
         'pct_with_misspelled': pct(papers_with_misspelled),
         'pct_with_changed': pct(papers_with_changed),
         'pct_with_unknown': pct(papers_with_unknown),
-        'total_species_mentions': total_species_found,
+        # Distinct valid species (globally deduplicated) — the defensible headline.
+        'distinct_species': len(distinct_species),
+        # The previous "unique species names" number: a SUM of per-paper counts
+        # (double-counts species used in multiple papers; includes common/unknown).
+        'total_name_detections': total_detections,
+        'common_name_detections': n_common,
+        'unknown_detections': n_unknown,
         'classification_totals': dict(total_by_type),
         'top_outdated_names': outdated_names.most_common(20),
         'top_misspelled_names': misspelled_names.most_common(20),
@@ -213,148 +211,104 @@ def summarize():
         'journals_represented': len(journal_counts),
         'top_journals': journal_counts.most_common(15),
         'top_issue_papers': paper_details[:10],
+        'reference_only_error_names': ref_only_names.most_common(20),
+        'n_papers_with_reference_only_errors': papers_with_ref_only,
+        'papers_excluded_no_names': len(excluded_no_names),
+        'excluded_no_names': excluded_no_names,
         'excluded_papers': excluded_papers,
     }
 
-    # ── Write JSON ───────────────────────────────────────────────────────
     SUMMARY_FILE.parent.mkdir(parents=True, exist_ok=True)
     with open(SUMMARY_FILE, 'w', encoding='utf-8') as f:
         json.dump(summary, f, indent=2, ensure_ascii=False)
     print(f'Summary JSON written to {SUMMARY_FILE}')
 
-    # ── Write Markdown report ────────────────────────────────────────────
-    md = generate_markdown_report(summary)
-    SUMMARY_MD.write_text(md, encoding='utf-8')
+    SUMMARY_MD.write_text(generate_markdown_report(summary), encoding='utf-8')
     print(f'Summary report written to {SUMMARY_MD}')
 
-    # ── Print highlights ─────────────────────────────────────────────────
-    print(f'\n{"=" * 60}')
-    print(f'FISHFINDER Meta-Analysis Summary')
-    print(f'{"=" * 60}')
-    print(f'Papers analyzed:             {total_papers}')
-    print(f'Papers excluded (non-NA):    {len(excluded_papers)}')
+    # ── Highlights ───────────────────────────────────────────────────────────
+    print(f'\n{"=" * 60}\nFISHFINDER Meta-Analysis Summary (round-2)\n{"=" * 60}')
+    print(f'Papers analyzed (in scope):  {total_papers}')
+    print(f'Papers excluded (out-of-scope): {len(excluded_papers)}')
+    print(f'Papers excluded (no scientific names): {len(excluded_no_names)}')
     print(f'Papers with naming errors:   {papers_with_issues} ({pct(papers_with_issues)}%)')
     print(f'  - with outdated names:     {papers_with_outdated} ({pct(papers_with_outdated)}%)')
     print(f'  - with misspelled names:   {papers_with_misspelled} ({pct(papers_with_misspelled)}%)')
-    print(f'Papers with changed names:   {papers_with_changed} ({pct(papers_with_changed)}%)')
-    print(f'Papers with unknown names:   {papers_with_unknown} ({pct(papers_with_unknown)}%)')
-    print(f'Total species found:         {total_species_found}')
-    print(f'Journals represented:        {len(journal_counts)}')
-
+    print(f'Distinct species (dedup):    {len(distinct_species)}')
+    print(f'Total name detections (sum): {total_detections}')
+    print(f'Reference-only error names excluded: {sum(ref_only_names.values())} '
+          f'across {papers_with_ref_only} papers')
     if outdated_names:
-        print(f'\nTop 5 most common outdated names:')
-        for name, count in outdated_names.most_common(5):
-            print(f'  {name}: {count} papers')
-
+        print('\nTop outdated names:')
+        for name, count in outdated_names.most_common(6):
+            print(f'  {name}: {count}')
     if misspelled_names:
-        print(f'\nTop 5 most common misspellings:')
-        for name, count in misspelled_names.most_common(5):
-            print(f'  {name}: {count} papers')
+        print('\nTop misspellings:')
+        for name, count in misspelled_names.most_common(6):
+            print(f'  {name}: {count}')
 
 
-def generate_markdown_report(summary):
-    """Generate a formatted Markdown report for manuscript inclusion."""
-    lines = [
+def generate_markdown_report(s):
+    L = [
         '# FISHFINDER Meta-Analysis: Fish Naming Errors in Recent Literature',
-        '',
-        '## Overview',
-        '',
-        f'We analyzed **{summary["total_papers_analyzed"]}** recent open-access '
-        f'papers (published {2023}--present) involving North American fish species. '
-        f'Papers were retrieved from OpenAlex and filtered to English-language, '
-        f'open-access articles with at least one author at a US, Canadian, or '
-        f'Mexican institution. Title keywords were used to select multi-species '
-        f'field studies (e.g., community surveys, species checklists, assemblage '
-        f'assessments).',
-    ]
-
-    if summary['papers_excluded_non_na']:
-        lines.extend([
-            '',
-            f'An additional {summary["papers_excluded_non_na"]} papers were excluded '
-            f'because fewer than {int(NA_SPECIES_RATIO_THRESHOLD * 100)}% of detected '
-            f'species were in the AFS database, indicating the study focused on '
-            f'non-North-American fauna.',
-        ])
-
-    lines.extend([
-        '',
-        '## Key Findings',
-        '',
-        f'- **{summary["pct_with_errors"]:.1f}%** of papers contained at least one '
-        f'naming error (outdated synonym or misspelling)',
-        f'- **{summary["pct_with_outdated"]:.1f}%** used at least one outdated '
-        f'species name (pre-8th edition synonym)',
-        f'- **{summary["pct_with_misspelled"]:.1f}%** contained at least one '
-        f'misspelled species name',
-        f'- **{summary["pct_with_changed"]:.1f}%** referenced species whose names '
-        f'changed between the 7th and 8th editions (not errors, but worth verifying)',
-        f'- A total of **{summary["total_species_mentions"]}** unique species names '
-        f'were encountered across all papers',
-        '',
-        '## Classification Breakdown',
-        '',
-        '| Classification | Count | Description |',
+        '', '## Overview', '',
+        f'We analyzed **{s["total_papers_analyzed"]}** recent open-access papers on '
+        f'North American fish, retrieved from OpenAlex and filtered to English-language '
+        f'articles. Each paper\'s study region was verified (title, abstract, methods) '
+        f'and papers outside the *Names of Fishes* area (USA, Canada, Mexico) were '
+        f'excluded; **{s["papers_excluded_non_na"]}** papers were removed on this basis, and '
+        f'a further **{s["papers_excluded_no_names"]}** in which no scientific names were '
+        f'detected in the body text (e.g. common-name-only studies, or non-article content) '
+        f'were excluded as unassessable. Names appearing only in reference lists were '
+        f'tabulated separately and excluded from error counts.',
+        '', '## Key Findings', '',
+        f'- **{s["pct_with_errors"]}%** of papers contained at least one naming error '
+        f'(outdated synonym or misspelling)',
+        f'- **{s["pct_with_outdated"]}%** used at least one outdated species name',
+        f'- **{s["pct_with_misspelled"]}%** contained at least one misspelled species name',
+        f'- **{s["pct_with_changed"]}%** referenced species whose names changed between '
+        f'the 7th and 8th editions (not errors, but worth verifying)',
+        f'- **{s["distinct_species"]}** distinct species (globally deduplicated) were '
+        f'detected across all papers',
+        f'- These arose from **{s["total_name_detections"]}** total name detections '
+        f'(a paper-level sum; a species used in *n* papers counts *n* times, and this '
+        f'figure also includes {s["common_name_detections"]} common-name and '
+        f'{s["unknown_detections"]} unrecognized/out-of-scope detections)',
+        '', '## Classification Breakdown', '',
+        '| Classification | Detections | Description |',
         '|---------------|-------|-------------|',
-    ])
-
-    type_descriptions = {
-        'valid': 'Exact match in AFS 8th edition',
+    ]
+    desc = {
+        'valid': 'Exact match in Names of Fishes 8th edition',
         'changed': 'Valid but updated from 7th edition',
-        'common_name': 'Matched via common name',
-        'outdated': 'Pre-8th edition synonym',
-        'misspelled': 'Levenshtein distance <= 2 from valid name',
-        'unknown': 'Recognized genus, species not in AFS database',
+        'common': 'Matched via common name',
+        'outdated': 'Pre-8th-edition synonym',
+        'misspelled': 'Levenshtein distance 1-2 from a valid name',
+        'unknown': 'Recognized genus, species not in the AFS list (often extralimital)',
     }
+    for cls in ['valid', 'changed', 'common', 'outdated', 'misspelled', 'unknown']:
+        L.append(f'| {cls.title()} | {s["classification_totals"].get(cls, 0)} | {desc[cls]} |')
 
-    for cls in ['valid', 'changed', 'common_name', 'outdated', 'misspelled', 'unknown']:
-        count = summary['classification_totals'].get(cls, 0)
-        desc = type_descriptions.get(cls, '')
-        lines.append(f'| {cls.replace("_", " ").title()} | {count} | {desc} |')
+    if s['top_outdated_names']:
+        L += ['', '## Most Common Outdated Names', '', '| Outdated Name | Papers |',
+              '|---------------|--------|']
+        L += [f'| *{n}* | {c} |' for n, c in s['top_outdated_names'][:12]]
+    if s['top_misspelled_names']:
+        L += ['', '## Most Common Misspellings', '', '| Misspelled Name | Papers |',
+              '|-----------------|--------|']
+        L += [f'| *{n}* | {c} |' for n, c in s['top_misspelled_names'][:12]]
+    if s['reference_only_error_names']:
+        L += ['', '## Names Found Only in Reference Lists (Excluded)', '',
+              f'{s["n_papers_with_reference_only_errors"]} papers contained '
+              f'outdated/misspelled names that appeared **only** in cited reference '
+              f'titles (not the authors\' own usage); these were excluded from the '
+              f'error counts above.', '', '| Name (in references) | Papers |',
+              '|----------------------|--------|']
+        L += [f'| *{n}* | {c} |' for n, c in s['reference_only_error_names'][:12]]
 
-    if summary['top_outdated_names']:
-        lines.extend([
-            '',
-            '## Most Common Outdated Names',
-            '',
-            '| Outdated Name | Papers Using It |',
-            '|---------------|----------------|',
-        ])
-        for name, count in summary['top_outdated_names'][:10]:
-            lines.append(f'| *{name}* | {count} |')
-
-    if summary['top_misspelled_names']:
-        lines.extend([
-            '',
-            '## Most Common Misspellings',
-            '',
-            '| Misspelled Name | Papers |',
-            '|-----------------|--------|',
-        ])
-        for name, count in summary['top_misspelled_names'][:10]:
-            lines.append(f'| *{name}* | {count} |')
-
-    if summary['top_changed_names']:
-        lines.extend([
-            '',
-            '## Most Common Changed Names (7th → 8th Edition)',
-            '',
-            '| Species | Papers |',
-            '|---------|--------|',
-        ])
-        for name, count in summary['top_changed_names'][:10]:
-            lines.append(f'| *{name}* | {count} |')
-
-    lines.extend([
-        '',
-        f'## Journals Represented',
-        '',
-        f'The analysis covered papers from **{summary["journals_represented"]}** '
-        f'different journals.',
-        '',
-    ])
-
-    return '\n'.join(lines)
+    L += ['', '## Journals Represented', '',
+          f'The analysis covered papers from **{s["journals_represented"]}** journals.', '']
+    return '\n'.join(L)
 
 
 if __name__ == '__main__':

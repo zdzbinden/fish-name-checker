@@ -29,7 +29,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
 
-from config import SUMMARY_FILE, RESULTS_DIR, FIGURES_DIR
+from config import SUMMARY_FILE, RESULTS_BODY_DIR, PAPERS_CACHE, PAPER_REVIEW, FIGURES_DIR
 
 # ── Style ────────────────────────────────────────────────────────────────────
 plt.rcParams.update({
@@ -73,11 +73,17 @@ def load_summary():
 
 
 def load_all_results():
-    """Load all per-paper result JSONs and return combined details."""
+    """Load per-paper BODY results for INCLUDED papers only, return details."""
     all_details = []
-    if not RESULTS_DIR.exists():
+    if not RESULTS_BODY_DIR.exists():
         return all_details
-    for f in RESULTS_DIR.glob('*.json'):
+    papers = json.load(open(PAPERS_CACHE, encoding='utf-8')).get('papers', {})
+    lookup = {p['pdf_file']: p for p in papers.values() if p.get('pdf_file')}
+    review = json.load(open(PAPER_REVIEW, encoding='utf-8')) if PAPER_REVIEW.exists() else {}
+    for f in RESULTS_BODY_DIR.glob('*.json'):
+        doi = lookup.get(f.stem, {}).get('doi', '')
+        if review.get(doi, {}).get('decision') == 'exclude':
+            continue
         with open(f, 'r', encoding='utf-8') as fp:
             data = json.load(fp)
             for d in data.get('details', []):
@@ -105,7 +111,7 @@ def fig_classification_breakdown(summary, save_dir):
         ax.text(bar.get_width() + max(counts) * 0.02, bar.get_y() + bar.get_height() / 2,
                 str(count), va='center', fontsize=9)
 
-    ax.set_xlabel('Number of Unique Species Names')
+    ax.set_xlabel('Number of Name Detections')
     ax.set_title('Classification of Species Names Across Analyzed Papers')
     ax.invert_yaxis()
     ax.set_xlim(0, max(counts) * 1.15)
@@ -304,13 +310,14 @@ def table_summary_stats(summary, save_dir):
     """Write summary statistics as CSV."""
     rows = [
         ('Papers analyzed', summary['total_papers_analyzed']),
-        ('Papers excluded (non-NA)', summary['papers_excluded_non_na']),
+        ('Papers excluded (out-of-scope)', summary['papers_excluded_non_na']),
         ('Papers with naming errors', f"{summary['papers_with_naming_errors']} ({summary['pct_with_errors']}%)"),
         ('  with outdated names', f"{summary['papers_with_outdated_names']} ({summary['pct_with_outdated']}%)"),
         ('  with misspelled names', f"{summary['papers_with_misspelled_names']} ({summary['pct_with_misspelled']}%)"),
         ('Papers with changed names (8th ed.)', f"{summary['papers_with_changed_names']} ({summary['pct_with_changed']}%)"),
         ('Papers with unknown names', f"{summary['papers_with_unknown_names']} ({summary['pct_with_unknown']}%)"),
-        ('Total unique species detected', summary['total_species_mentions']),
+        ('Distinct species detected (deduplicated)', summary['distinct_species']),
+        ('Total name detections', summary['total_name_detections']),
         ('Journals represented', summary['journals_represented']),
     ]
 
@@ -365,7 +372,7 @@ def write_captions(summary, save_dir):
     captions = f"""FIGURE AND TABLE CAPTIONS
 ========================
 
-Figure 1. Classification of {summary['total_species_mentions']} unique species names detected across {n} open-access papers analyzed by FISHFINDER. Valid names matched the AFS Names of Fishes 8th edition exactly; Changed names are valid in the 8th edition but were updated from the 7th edition; Common Names were matched to their scientific binomial; Outdated names are pre-8th-edition synonyms; Misspelled names had a Levenshtein edit distance of 1-2 from a valid name; Unknown names had a recognized fish genus but an unrecognized species epithet (typically non-North-American species).
+Figure 1. Classification of {summary['total_name_detections']} name detections ({summary['distinct_species']} distinct species) across {n} open-access papers analyzed by FISHFINDER. Valid names matched the AFS Names of Fishes 8th edition exactly; Changed names are valid in the 8th edition but were updated from the 7th edition; Common Names were matched to their scientific binomial; Outdated names are pre-8th-edition synonyms; Misspelled names had a Levenshtein edit distance of 1-2 from a valid name; Unknown names had a recognized fish genus but an unrecognized species epithet (typically non-North-American species).
 
 Figure 2. Distribution of naming errors (outdated synonyms + misspellings) per paper across {n} analyzed papers. Papers with zero errors used only current, correctly spelled AFS names.
 

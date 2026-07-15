@@ -188,6 +188,17 @@ describe('fuzzy matching edge cases', () => {
       assert.ok(lookups.synonymMap.size > 8000, `expected >8000 synonyms, got ${lookups.synonymMap.size}`);
     });
 
+    it('excludes verified extralimital valid species from the synonym map', () => {
+      // Reviewer 1, round 2: valid species outside the Names of Fishes area must
+      // not be present as synonyms (see extralimital_valids.json).
+      for (const name of ['Misgurnus fossilis', 'Platichthys flesus',
+                          'Ariopsis seemanni', 'Seriola lalandi',
+                          'Sphyraena obtusata', 'Acipenser sturio']) {
+        assert.ok(!lookups.synonymMap.has(name.toLowerCase()),
+          `${name} must not be in the synonym map`);
+      }
+    });
+
     it('has a reasonable number of genera', () => {
       assert.ok(lookups.generaSet.size > 1400, `expected >1400 genera, got ${lookups.generaSet.size}`);
     });
